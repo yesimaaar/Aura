@@ -25,7 +25,9 @@ class EnhancementSlider extends StatelessWidget {
     String displayValue;
     if (min < 0 && max > 0) {
       // For values centered around 0
-      displayValue = value >= 0 ? '+${(value * 100).round()}' : '${(value * 100).round()}';
+      displayValue = value >= 0
+          ? '+${(value * 100).round()}'
+          : '${(value * 100).round()}';
     } else if (min == 0 && max == 1) {
       // For 0-1 range (like sharpness)
       displayValue = '${(value * 100).round()}%';
@@ -43,11 +45,7 @@ class EnhancementSlider extends StatelessWidget {
             color: AuraColors.surfaceLight,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(
-            icon,
-            color: AuraColors.textSecondary,
-            size: 18,
-          ),
+          child: Icon(icon, color: AuraColors.textSecondary, size: 18),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -68,7 +66,7 @@ class EnhancementSlider extends StatelessWidget {
                     displayValue,
                     style: TextStyle(
                       fontSize: 12,
-                      color: AuraColors.primaryPurple,
+                      color: Colors.white,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -84,10 +82,10 @@ class EnhancementSlider extends StatelessWidget {
                   overlayShape: const RoundSliderOverlayShape(
                     overlayRadius: 16,
                   ),
-                  activeTrackColor: AuraColors.primaryPurple,
+                  activeTrackColor: Colors.white,
                   inactiveTrackColor: AuraColors.surfaceLight,
                   thumbColor: Colors.white,
-                  overlayColor: AuraColors.primaryPurple.withValues(alpha: 0.2),
+                  overlayColor: Colors.white.withValues(alpha: 0.2),
                 ),
                 child: Slider(
                   value: value,

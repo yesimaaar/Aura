@@ -9,37 +9,41 @@ class GeminiService {
     'GEMINI_API_KEY',
     defaultValue: '',
   );
-  
+
   GenerativeModel? _textModel;
   GenerativeModel? _visionModel;
   ChatSession? _chatSession;
-  
+
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
-  
+
   /// Verifica si hay API key configurada
   bool get hasApiKey => _apiKey.isNotEmpty;
-  
+
   /// Inicializa los modelos de Gemini
   Future<void> initialize() async {
     debugPrint('🔑 GeminiService: API Key length = ${_apiKey.length}');
     debugPrint('🔑 GeminiService: API Key isEmpty = ${_apiKey.isEmpty}');
-    debugPrint('🔑 GeminiService: API Key starts with = ${_apiKey.isNotEmpty ? _apiKey.substring(0, 10) : "EMPTY"}...');
-    
+    debugPrint(
+      '🔑 GeminiService: API Key starts with = ${_apiKey.isNotEmpty ? _apiKey.substring(0, 10) : "EMPTY"}...',
+    );
+
     if (_apiKey.isEmpty) {
-      debugPrint('⚠️ GeminiService: API Key no configurada via --dart-define=GEMINI_API_KEY=xxx');
+      debugPrint(
+        '⚠️ GeminiService: API Key no configurada via --dart-define=GEMINI_API_KEY=xxx',
+      );
       debugPrint('   Usando modo simulado.');
       _isInitialized = false;
       return;
     }
-    
+
     await _initializeModels();
   }
-  
+
   /// Inicializa los modelos con la API key
   Future<bool> _initializeModels() async {
     if (_apiKey.isEmpty) return false;
-    
+
     try {
       // Modelo para texto y chat (Gemini 2.0 Flash - el más reciente)
       _textModel = GenerativeModel(
@@ -53,7 +57,7 @@ class GeminiService {
         ),
         systemInstruction: Content.text(_systemPrompt),
       );
-      
+
       // Modelo para visión/análisis de imágenes (Gemini 2.0 Flash con visión)
       _visionModel = GenerativeModel(
         model: 'gemini-2.0-flash',
@@ -66,10 +70,10 @@ class GeminiService {
         ),
         systemInstruction: Content.text(_visionSystemPrompt),
       );
-      
+
       // Iniciar sesión de chat
       _chatSession = _textModel!.startChat();
-      
+
       _isInitialized = true;
       debugPrint('✅ GeminiService inicializado correctamente');
       return true;
@@ -79,9 +83,10 @@ class GeminiService {
       return false;
     }
   }
-  
-  /// System prompt para el chat
-  static const String _systemPrompt = '''
+
+  /// System prompt para el chat (generado dinámicamente para incluir fecha actual)
+  static String get _systemPrompt =>
+      '''
 Eres Aura, una IA de planificación visual amigable y útil. Tu personalidad:
 - Hablas en español de manera casual pero profesional
 - Usas emojis ocasionalmente para ser más expresivo
@@ -95,12 +100,30 @@ Tus capacidades:
 - Proponer combinaciones de outfits
 - Generar listas de tareas
 - Dar consejos de mejora estética para fotos
+- CREAR tareas, recordatorios, eventos y recetas en la app del usuario
 
-Siempre estructura tus respuestas de forma clara con:
-- Observaciones de lo que ves
-- Sugerencias concretas
-- Pasos accionables numerados cuando aplique
+IMPORTANTE - Cuando el usuario te pida crear una tarea, recordatorio, evento o receta:
+Debes incluir un bloque JSON especial al FINAL de tu respuesta con el formato:
 
+Para TAREA:
+[AURA_ACTION]{"type":"task","title":"título","description":"descripción opcional","priority":2,"dueDate":"2025-12-10T10:00:00"}[/AURA_ACTION]
+
+Para RECORDATORIO:
+[AURA_ACTION]{"type":"reminder","title":"título","description":"descripción opcional","dateTime":"2025-12-10T15:30:00"}[/AURA_ACTION]
+
+Para EVENTO:
+[AURA_ACTION]{"type":"event","title":"título","description":"descripción opcional","startDate":"2025-12-10T09:00:00","endDate":"2025-12-10T10:00:00","isAllDay":false}[/AURA_ACTION]
+
+Para RECETA:
+[AURA_ACTION]{"type":"recipe","title":"nombre receta","description":"descripción","ingredients":["ingrediente1","ingrediente2"],"steps":["paso1","paso2"],"prepTime":10,"cookTime":20,"category":"almuerzo"}[/AURA_ACTION]
+
+Puedes incluir MÚLTIPLES bloques [AURA_ACTION] si el usuario pide crear varias cosas.
+
+Para la prioridad de tareas: 1=baja, 2=media, 3=alta
+Para categoría de recetas: desayuno, almuerzo, cena, postre, snack
+La fecha actual es: ${DateTime.now().toIso8601String().substring(0, 10)}
+
+Siempre confirma al usuario qué creaste con un mensaje amigable ANTES del bloque JSON.
 Mantén las respuestas concisas pero útiles.
 ''';
 
@@ -129,7 +152,7 @@ Responde en español, sé práctico y da pasos accionables.
     if (!_isInitialized || _chatSession == null) {
       return _getSimulatedResponse(message, null);
     }
-    
+
     try {
       final response = await _chatSession!.sendMessage(Content.text(message));
       return response.text ?? 'No pude generar una respuesta.';
@@ -138,37 +161,43 @@ Responde en español, sé práctico y da pasos accionables.
       return _getSimulatedResponse(message, null);
     }
   }
-  
+
   /// Analiza una imagen y genera una respuesta
   Future<String> analyzeImage(File imageFile, {String? prompt}) async {
     if (!_isInitialized || _visionModel == null) {
       return _getSimulatedResponse(prompt ?? 'Analiza esta imagen', imageFile);
     }
-    
+
     try {
       final imageBytes = await imageFile.readAsBytes();
       final mimeType = _getMimeType(imageFile.path);
-      
+
       final imagePart = DataPart(mimeType, imageBytes);
-      final textPart = TextPart(prompt ?? 'Analiza esta imagen y dame sugerencias prácticas para organizarla o mejorarla.');
-      
+      final textPart = TextPart(
+        prompt ??
+            'Analiza esta imagen y dame sugerencias prácticas para organizarla o mejorarla.',
+      );
+
       final response = await _visionModel!.generateContent([
-        Content.multi([textPart, imagePart])
+        Content.multi([textPart, imagePart]),
       ]);
-      
+
       return response.text ?? 'No pude analizar la imagen.';
     } catch (e) {
       debugPrint('Error en analyzeImage: $e');
       return _getSimulatedResponse(prompt ?? 'Analiza esta imagen', imageFile);
     }
   }
-  
+
   /// Analiza imagen para vista en vivo (respuesta más corta)
-  Future<List<String>> analyzeLiveView(Uint8List imageBytes, String context) async {
+  Future<List<String>> analyzeLiveView(
+    Uint8List imageBytes,
+    String context,
+  ) async {
     if (!_isInitialized || _visionModel == null) {
       return _getSimulatedLiveInsights(context);
     }
-    
+
     try {
       final imagePart = DataPart('image/jpeg', imageBytes);
       final textPart = TextPart('''
@@ -177,27 +206,34 @@ Dame exactamente 3 observaciones cortas (máximo 15 palabras cada una).
 Formato: Una observación por línea, sin números ni viñetas.
 Sé específico sobre lo que VES en la imagen.
 ''');
-      
+
       final response = await _visionModel!.generateContent([
-        Content.multi([textPart, imagePart])
+        Content.multi([textPart, imagePart]),
       ]);
-      
+
       final text = response.text ?? '';
-      final insights = text.split('\n')
+      final insights = text
+          .split('\n')
           .where((line) => line.trim().isNotEmpty)
           .take(3)
           .toList();
-      
-      return insights.isNotEmpty ? insights : _getSimulatedLiveInsights(context);
+
+      return insights.isNotEmpty
+          ? insights
+          : _getSimulatedLiveInsights(context);
     } catch (e) {
       debugPrint('Error en analyzeLiveView: $e');
       return _getSimulatedLiveInsights(context);
     }
   }
-  
+
   /// Genera un plan de organización basado en la imagen
-  Future<String> generateOrganizationPlan(File imageFile, String spaceType) async {
-    final prompt = '''
+  Future<String> generateOrganizationPlan(
+    File imageFile,
+    String spaceType,
+  ) async {
+    final prompt =
+        '''
 Analiza este espacio ($spaceType) y genera un plan de organización detallado:
 
 1. **Estado actual**: Describe lo que ves
@@ -210,10 +246,10 @@ Analiza este espacio ($spaceType) y genera un plan de organización detallado:
 
 Sé específico y práctico.
 ''';
-    
+
     return analyzeImage(imageFile, prompt: prompt);
   }
-  
+
   /// Genera recetas basadas en ingredientes visibles
   Future<String> generateRecipes(File imageFile) async {
     final prompt = '''
@@ -241,10 +277,10 @@ Analiza los ingredientes que ves en esta imagen y sugiere recetas:
 
 Adapta las recetas a lo que realmente ves disponible.
 ''';
-    
+
     return analyzeImage(imageFile, prompt: prompt);
   }
-  
+
   /// Genera sugerencias de outfits
   Future<String> generateOutfitSuggestions(File imageFile) async {
     final prompt = '''
@@ -270,10 +306,10 @@ Analiza la ropa que ves en esta imagen y sugiere outfits:
 
 Sé específico con colores y estilos que observas.
 ''';
-    
+
     return analyzeImage(imageFile, prompt: prompt);
   }
-  
+
   /// Genera sugerencias de mejora estética para una imagen
   Future<String> generateImageEditSuggestions(File imageFile) async {
     final prompt = '''
@@ -297,17 +333,17 @@ Analiza esta imagen desde una perspectiva de edición fotográfica:
 
 Sé específico con valores cuando sea posible (ej: +10 brillo, -5 saturación).
 ''';
-    
+
     return analyzeImage(imageFile, prompt: prompt);
   }
-  
+
   /// Reinicia la sesión de chat
   void resetChat() {
     if (_textModel != null) {
       _chatSession = _textModel!.startChat();
     }
   }
-  
+
   /// Obtiene el tipo MIME de una imagen
   String _getMimeType(String path) {
     final extension = path.split('.').last.toLowerCase();
@@ -325,13 +361,15 @@ Sé específico con valores cuando sea posible (ej: +10 brillo, -5 saturación).
         return 'image/jpeg';
     }
   }
-  
+
   /// Respuesta simulada cuando no hay API key
   String _getSimulatedResponse(String query, File? image) {
     final lowerQuery = query.toLowerCase();
-    
+
     if (image != null) {
-      if (lowerQuery.contains('organizar') || lowerQuery.contains('espacio') || lowerQuery.contains('cuarto')) {
+      if (lowerQuery.contains('organizar') ||
+          lowerQuery.contains('espacio') ||
+          lowerQuery.contains('cuarto')) {
         return '''📸 **He analizado tu espacio**
 
 **Lo que observo:**
@@ -354,7 +392,9 @@ Crea zonas definidas para cada actividad y asigna un lugar fijo a cada cosa.
 Regla de los 2 minutos: si algo toma menos de 2 min guardarlo, hazlo inmediatamente.
 
 ¿Quieres que detalle algún paso específico?''';
-      } else if (lowerQuery.contains('receta') || lowerQuery.contains('comida') || lowerQuery.contains('nevera')) {
+      } else if (lowerQuery.contains('receta') ||
+          lowerQuery.contains('comida') ||
+          lowerQuery.contains('nevera')) {
         return '''🍳 **Ingredientes que detecto**
 
 **Disponibles:**
@@ -404,7 +444,7 @@ Lo más cómodo pero con estilo. Para días de descanso.
 
 ¿Te detallo alguna combinación específica?''';
       }
-      
+
       return '''📸 **He analizado tu imagen**
 
 **Lo que puedo hacer:**
@@ -415,7 +455,7 @@ Lo más cómodo pero con estilo. Para días de descanso.
 
 ¿Qué te gustaría que haga con lo que veo?''';
     }
-    
+
     // Respuestas solo texto
     if (lowerQuery.contains('hola') || lowerQuery.contains('hey')) {
       return '''¡Hey! 👋
@@ -432,7 +472,7 @@ Puedo ayudarte a:
 **¿Cómo empezamos?**
 Sube una foto o usa la cámara en vivo para que analice tu espacio.''';
     }
-    
+
     if (lowerQuery.contains('organizar') || lowerQuery.contains('orden')) {
       return '''🧹 **¡Perfecto! Vamos a organizar**
 
@@ -449,7 +489,7 @@ Una vez que vea el espacio, te daré:
 
 ¿Listo para mostrarme?''';
     }
-    
+
     if (lowerQuery.contains('receta') || lowerQuery.contains('cocinar')) {
       return '''🍳 **¡A cocinar!**
 
@@ -464,7 +504,7 @@ Te sugeriré recetas adaptadas a **exactamente** lo que tengas, desde opciones d
 
 ¿Me muestras qué hay para trabajar?''';
     }
-    
+
     return '''¡Entendido! 🎯
 
 Para ayudarte mejor, necesito **ver** lo que quieres organizar o mejorar.
@@ -477,7 +517,7 @@ Una vez que tenga la imagen, puedo crear planes, listas, recetas, outfits y más
 
 ¿Qué te gustaría analizar?''';
   }
-  
+
   /// Insights simulados para vista en vivo
   List<String> _getSimulatedLiveInsights(String context) {
     switch (context) {
@@ -519,7 +559,7 @@ Una vez que tenga la imagen, puedo crear planes, listas, recetas, outfits y más
         ];
     }
   }
-  
+
   /// Libera recursos
   void dispose() {
     _chatSession = null;

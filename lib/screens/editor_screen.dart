@@ -38,9 +38,7 @@ class _EditorScreenState extends State<EditorScreen>
       body: Consumer<AuraProvider>(
         builder: (context, provider, child) {
           if (provider.currentImage == null) {
-            return const Center(
-              child: Text('No image selected'),
-            );
+            return const Center(child: Text('No image selected'));
           }
 
           return SafeArea(
@@ -80,16 +78,18 @@ class _EditorScreenState extends State<EditorScreen>
             ),
           ),
           TextButton(
-            onPressed: provider.currentEnhancements.hasChanges ||
+            onPressed:
+                provider.currentEnhancements.hasChanges ||
                     provider.enhancedPreview != null
                 ? () => _saveImage(context, provider)
                 : null,
             child: Text(
               'Save',
               style: TextStyle(
-                color: provider.currentEnhancements.hasChanges ||
+                color:
+                    provider.currentEnhancements.hasChanges ||
                         provider.enhancedPreview != null
-                    ? AuraColors.primaryPurple
+                    ? Colors.white
                     : AuraColors.textMuted,
                 fontWeight: FontWeight.w600,
               ),
@@ -114,14 +114,8 @@ class _EditorScreenState extends State<EditorScreen>
             minScale: 0.5,
             maxScale: 4.0,
             child: preview != null
-                ? Image.memory(
-                    preview,
-                    fit: BoxFit.contain,
-                  )
-                : Image.file(
-                    File(image.path),
-                    fit: BoxFit.contain,
-                  ),
+                ? Image.memory(preview, fit: BoxFit.contain)
+                : Image.file(File(image.path), fit: BoxFit.contain),
           ),
         ),
 
@@ -133,14 +127,9 @@ class _EditorScreenState extends State<EditorScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(
-                    color: AuraColors.primaryPurple,
-                  ),
+                  CircularProgressIndicator(color: Colors.white),
                   SizedBox(height: 16),
-                  Text(
-                    'Processing...',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                  Text('Processing...', style: TextStyle(color: Colors.white)),
                 ],
               ),
             ),
@@ -155,17 +144,17 @@ class _EditorScreenState extends State<EditorScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: const BoxDecoration(
-                      color: AuraColors.surfaceLight,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.auto_awesome,
-                      color: Colors.white,
-                      size: 40,
-                    ),
-                  )
+                        padding: const EdgeInsets.all(20),
+                        decoration: const BoxDecoration(
+                          color: AuraColors.surfaceLight,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.auto_awesome,
+                          color: Colors.white,
+                          size: 40,
+                        ),
+                      )
                       .animate(onPlay: (c) => c.repeat())
                       .shimmer(duration: 1500.ms),
                   const SizedBox(height: 16),
@@ -237,7 +226,7 @@ class _EditorScreenState extends State<EditorScreen>
           // Tabs
           TabBar(
             controller: _tabController,
-            indicatorColor: AuraColors.primaryPurple,
+            indicatorColor: Colors.white,
             labelColor: Colors.white,
             unselectedLabelColor: AuraColors.textMuted,
             tabs: const [
@@ -290,9 +279,8 @@ class _EditorScreenState extends State<EditorScreen>
             value: enhancements.contrast,
             min: 0.5,
             max: 2.0,
-            onChanged: (v) => provider.updateEnhancements(
-              enhancements.copyWith(contrast: v),
-            ),
+            onChanged: (v) =>
+                provider.updateEnhancements(enhancements.copyWith(contrast: v)),
           ),
           const SizedBox(height: 16),
           EnhancementSlider(
@@ -312,9 +300,8 @@ class _EditorScreenState extends State<EditorScreen>
             value: enhancements.warmth,
             min: -1.0,
             max: 1.0,
-            onChanged: (v) => provider.updateEnhancements(
-              enhancements.copyWith(warmth: v),
-            ),
+            onChanged: (v) =>
+                provider.updateEnhancements(enhancements.copyWith(warmth: v)),
           ),
           const SizedBox(height: 16),
           EnhancementSlider(
@@ -379,14 +366,18 @@ class _ToolbarButton extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: isActive ? AuraColors.backgroundDark : AuraColors.textSecondary,
+              color: isActive
+                  ? AuraColors.backgroundDark
+                  : AuraColors.textSecondary,
               size: 24,
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                color: isActive ? AuraColors.backgroundDark : AuraColors.textSecondary,
+                color: isActive
+                    ? AuraColors.backgroundDark
+                    : AuraColors.textSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),

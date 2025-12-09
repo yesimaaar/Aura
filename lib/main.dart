@@ -5,29 +5,31 @@ import 'package:provider/provider.dart';
 import 'core/theme/aura_theme.dart';
 import 'providers/aura_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/organization_provider.dart';
 import 'services/permission_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/editor_screen.dart';
+import 'screens/organization_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  
+
   // Initialize ThemeProvider
   final themeProvider = ThemeProvider();
   await themeProvider.init();
-  
+
   runApp(AuraApp(themeProvider: themeProvider));
 }
 
 class AuraApp extends StatelessWidget {
   final ThemeProvider themeProvider;
-  
+
   const AuraApp({super.key, required this.themeProvider});
 
   @override
@@ -36,27 +38,39 @@ class AuraApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuraProvider()),
         ChangeNotifierProvider.value(value: themeProvider),
+        ChangeNotifierProvider(create: (_) => OrganizationProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           // Update system UI based on theme
-          SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: themeProvider.isDarkMode ? Brightness.light : Brightness.dark,
-            systemNavigationBarColor: themeProvider.isDarkMode ? AuraColors.bottomNavDark : AuraColors.bottomNavLight,
-            systemNavigationBarIconBrightness: themeProvider.isDarkMode ? Brightness.light : Brightness.dark,
-          ));
-          
+          SystemChrome.setSystemUIOverlayStyle(
+            SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: themeProvider.isDarkMode
+                  ? Brightness.light
+                  : Brightness.dark,
+              systemNavigationBarColor: themeProvider.isDarkMode
+                  ? AuraColors.bottomNavDark
+                  : AuraColors.bottomNavLight,
+              systemNavigationBarIconBrightness: themeProvider.isDarkMode
+                  ? Brightness.light
+                  : Brightness.dark,
+            ),
+          );
+
           return MaterialApp(
             title: 'Aura',
             debugShowCheckedModeBanner: false,
             theme: AuraTheme.lightTheme,
             darkTheme: AuraTheme.darkTheme,
-            themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            themeMode: themeProvider.isDarkMode
+                ? ThemeMode.dark
+                : ThemeMode.light,
             home: const SplashScreen(),
             routes: {
               '/home': (context) => const HomeScreen(),
               '/editor': (context) => const EditorScreen(),
+              '/organization': (context) => const OrganizationScreen(),
             },
           );
         },
@@ -87,15 +101,17 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
-    );
-    
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
-    
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
+
+    _scaleAnimation = Tween<double>(
+      begin: 0.8,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+
     _controller.forward();
     _initializeApp();
   }
@@ -106,15 +122,15 @@ class _SplashScreenState extends State<SplashScreen>
       setState(() => _statusText = 'Requesting permissions...');
       final permissionService = PermissionService();
       await permissionService.requestAllPermissions();
-      
+
       // Initialize provider
       setState(() => _statusText = 'Loading AI models...');
       final provider = context.read<AuraProvider>();
       await provider.initialize();
-      
+
       setState(() => _statusText = 'Ready!');
       await Future.delayed(const Duration(milliseconds: 500));
-      
+
       if (mounted) {
         if (context.mounted) {
           Navigator.pushReplacementNamed(context, '/home');
@@ -149,7 +165,7 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo
+                    // Logo - mantiene gradiente solo aquí
                     Container(
                       width: 120,
                       height: 120,
@@ -158,7 +174,7 @@ class _SplashScreenState extends State<SplashScreen>
                         borderRadius: BorderRadius.circular(30),
                         boxShadow: [
                           BoxShadow(
-                            color: AuraColors.primaryPurple.withValues(alpha: 0.4),
+                            color: Colors.white.withValues(alpha: 0.1),
                             blurRadius: 30,
                             spreadRadius: 5,
                           ),
@@ -171,11 +187,13 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ),
                     const SizedBox(height: 32),
-                    
-                    // App Name
+
+                    // App Name - mantiene gradiente solo para "Aura"
                     ShaderMask(
-                      shaderCallback: (bounds) => AuraColors.auraGradient
-                          .createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
+                      shaderCallback: (bounds) =>
+                          AuraColors.auraGradient.createShader(
+                            Rect.fromLTWH(0, 0, bounds.width, bounds.height),
+                          ),
                       child: const Text(
                         'Aura',
                         style: TextStyle(
@@ -186,7 +204,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ),
                     const SizedBox(height: 8),
-                    
+
                     // Tagline
                     Text(
                       'AI-Powered Visual Enhancement',
@@ -196,15 +214,15 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ),
                     const SizedBox(height: 48),
-                    
+
                     // Loading indicator or error
                     if (!_hasError) ...[
                       SizedBox(
                         width: 200,
                         child: LinearProgressIndicator(
                           backgroundColor: AuraColors.surfaceLight,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            AuraColors.primaryPurple,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Colors.white,
                           ),
                         ),
                       ),
@@ -216,18 +234,18 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ],
                     const SizedBox(height: 16),
-                    
+
                     // Status text
                     Text(
                       _statusText,
                       style: TextStyle(
                         fontSize: 14,
-                        color: _hasError 
-                            ? AuraColors.error 
+                        color: _hasError
+                            ? AuraColors.error
                             : AuraColors.textMuted,
                       ),
                     ),
-                    
+
                     // Retry button if error
                     if (_hasError) ...[
                       const SizedBox(height: 24),

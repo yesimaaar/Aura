@@ -21,7 +21,8 @@ class FilterSelector extends StatelessWidget {
       separatorBuilder: (context, index) => const SizedBox(width: 12),
       itemBuilder: (context, index) {
         final filter = ImageFilter.presets[index];
-        final isSelected = currentFilter == filter.id ||
+        final isSelected =
+            currentFilter == filter.id ||
             (currentFilter == null && filter.id == 'original');
 
         return GestureDetector(
@@ -35,9 +36,7 @@ class FilterSelector extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isSelected
-                        ? AuraColors.primaryPurple
-                        : Colors.transparent,
+                    color: isSelected ? Colors.white : Colors.transparent,
                     width: 2,
                   ),
                   gradient: _getFilterGradient(filter.id),
@@ -56,9 +55,7 @@ class FilterSelector extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                  color: isSelected
-                      ? AuraColors.primaryPurple
-                      : AuraColors.textSecondary,
+                  color: isSelected ? Colors.white : AuraColors.textSecondary,
                 ),
               ),
             ],
