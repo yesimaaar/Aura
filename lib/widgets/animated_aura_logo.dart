@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../core/theme/aura_theme.dart';
 
-/// Widget animado que alterna entre el texto "Aura" y el logo de la app
+/// Widget que muestra "Aura" y se transforma en el logo cuando [showLogo] es true.
+/// La transformación ocurre cuando el usuario envía un mensaje al chat.
 class AnimatedAuraLogo extends StatefulWidget {
   final double height;
-  final Duration interval;
-
+  final bool showLogo;
+  
   const AnimatedAuraLogo({
     super.key,
-    this.height = 36,
-    this.interval = const Duration(seconds: 5),
+    this.height = 40,
+    this.showLogo = false,
   });
 
   @override
@@ -19,39 +19,63 @@ class AnimatedAuraLogo extends StatefulWidget {
 
 class _AnimatedAuraLogoState extends State<AnimatedAuraLogo>
     with SingleTickerProviderStateMixin {
-  bool _showLogo = false;
-  late final AnimationController _controller;
-
+  late AnimationController _controller;
+  late Animation<double> _textOpacity;
+  late Animation<double> _logoOpacity;
+  late Animation<double> _logoScale;
+  bool _hasAnimated = false;
+  
   @override
   void initState() {
     super.initState();
+    
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 800),
     );
-    _startAnimation();
-  }
-
-  void _startAnimation() async {
-    while (mounted) {
-      await Future.delayed(widget.interval);
-      if (!mounted) return;
-
-      // Animar hacia el logo
-      setState(() => _showLogo = true);
-      _controller.forward();
-
-      await Future.delayed(const Duration(seconds: 3));
-      if (!mounted) return;
-
-      // Animar de vuelta al texto
-      _controller.reverse();
-      await Future.delayed(const Duration(milliseconds: 600));
-      if (!mounted) return;
-      setState(() => _showLogo = false);
+    
+    // El texto se desvanece
+    _textOpacity = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
+      ),
+    );
+    
+    // El logo aparece
+    _logoOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.4, 1.0, curve: Curves.easeIn),
+      ),
+    );
+    
+    // El logo crece ligeramente al aparecer
+    _logoScale = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.4, 1.0, curve: Curves.elasticOut),
+      ),
+    );
+    
+    // Si ya debe mostrar el logo, ir directo al final
+    if (widget.showLogo) {
+      _controller.value = 1.0;
+      _hasAnimated = true;
     }
   }
-
+  
+  @override
+  void didUpdateWidget(AnimatedAuraLogo oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Cuando showLogo cambia de false a true, animar
+    if (widget.showLogo && !oldWidget.showLogo && !_hasAnimated) {
+      _hasAnimated = true;
+      _controller.forward();
+    }
+  }
+  
   @override
   void dispose() {
     _controller.dispose();
@@ -60,61 +84,47 @@ class _AnimatedAuraLogoState extends State<AnimatedAuraLogo>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 500),
-      transitionBuilder: (child, animation) {
-        return FadeTransition(
-          opacity: animation,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.8, end: 1.0).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
-            ),
-            child: child,
-          ),
-        );
-      },
-      child: _showLogo ? _buildLogo() : _buildText(),
-    );
-  }
-
-  Widget _buildText() {
-    return ShaderMask(
-      key: const ValueKey('text'),
-      shaderCallback: (bounds) => AuraColors.auraGradient.createShader(
-        Rect.fromLTWH(0, 0, bounds.width, bounds.height),
-      ),
-      child: Text(
-        'Aura',
-        style: TextStyle(
-          fontSize: widget.height * 0.8,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLogo() {
-    return Container(
-          key: const ValueKey('logo'),
-          height: widget.height,
-          width: widget.height,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(widget.height * 0.25),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.white.withValues(alpha: 0.15),
-                blurRadius: 12,
-                spreadRadius: 2,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = AuraColors.getAccentColor(isDark);
+    
+    return SizedBox(
+      height: widget.height,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              // Texto "Aura" que se desvanece
+              Opacity(
+                opacity: _textOpacity.value,
+                child: Text(
+                  'Aura',
+                  style: TextStyle(
+                    fontSize: widget.height * 0.75,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+              
+              // Logo que aparece y se queda
+              Opacity(
+                opacity: _logoOpacity.value,
+                child: Transform.scale(
+                  scale: _logoScale.value,
+                  child: Image.asset(
+                    'assets/icons/aura_logo_header.png',
+                    height: widget.height,
+                    fit: BoxFit.contain,
+                  ),
+                ),
               ),
             ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(widget.height * 0.25),
-            child: Image.asset('assets/icons/aura_logo.png', fit: BoxFit.cover),
-          ),
-        )
-        .animate(onPlay: (controller) => controller.repeat(reverse: true))
-        .shimmer(duration: 2000.ms, color: Colors.white.withValues(alpha: 0.3));
+          );
+        },
+      ),
+    );
   }
 }

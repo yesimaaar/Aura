@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
@@ -148,16 +149,48 @@ Responde en español, sé práctico y da pasos accionables.
 ''';
 
   /// Envía un mensaje de texto al chat
-  Future<String> sendMessage(String message) async {
+  Future<String> sendMessage(String message, {String? organizationContext}) async {
     if (!_isInitialized || _chatSession == null) {
       return _getSimulatedResponse(message, null);
     }
 
     try {
-      final response = await _chatSession!.sendMessage(Content.text(message));
+      String fullMessage = message;
+      if (organizationContext != null && organizationContext.isNotEmpty) {
+        fullMessage = '$message\n\nContexto de organización:\n$organizationContext';
+      }
+      final response = await _chatSession!.sendMessage(Content.text(fullMessage));
       return response.text ?? 'No pude generar una respuesta.';
     } catch (e) {
       debugPrint('Error en sendMessage: $e');
+      return _getSimulatedResponse(message, null);
+    }
+  }
+
+  /// Envía un mensaje con imagen (base64)
+  Future<String> sendMessageWithImage(String message, String imageBase64, {String? organizationContext}) async {
+    if (!_isInitialized || _visionModel == null) {
+      return _getSimulatedResponse(message, null);
+    }
+
+    try {
+      final imageBytes = base64Decode(imageBase64);
+      final imagePart = DataPart('image/jpeg', imageBytes);
+      
+      String fullMessage = message;
+      if (organizationContext != null && organizationContext.isNotEmpty) {
+        fullMessage = '$message\n\nContexto de organización:\n$organizationContext';
+      }
+      
+      final textPart = TextPart(fullMessage);
+
+      final response = await _visionModel!.generateContent([
+        Content.multi([textPart, imagePart]),
+      ]);
+
+      return response.text ?? 'No pude analizar la imagen.';
+    } catch (e) {
+      debugPrint('Error en sendMessageWithImage: $e');
       return _getSimulatedResponse(message, null);
     }
   }

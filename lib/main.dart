@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
 
 import 'core/theme/aura_theme.dart';
 import 'providers/aura_provider.dart';
@@ -10,9 +13,15 @@ import 'services/permission_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/editor_screen.dart';
 import 'screens/organization_screen.dart';
+import 'screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
@@ -66,8 +75,9 @@ class AuraApp extends StatelessWidget {
             themeMode: themeProvider.isDarkMode
                 ? ThemeMode.dark
                 : ThemeMode.light,
-            home: const SplashScreen(),
+            home: const AuthWrapper(),
             routes: {
+              '/login': (context) => const LoginScreen(),
               '/home': (context) => const HomeScreen(),
               '/editor': (context) => const EditorScreen(),
               '/organization': (context) => const OrganizationScreen(),
@@ -79,8 +89,36 @@ class AuraApp extends StatelessWidget {
   }
 }
 
+/// Widget que decide si mostrar Login o Home basado en el estado de auth
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // Mientras carga, mostrar splash
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SplashScreen();
+        }
+        
+        // Si hay usuario, mostrar home
+        if (snapshot.hasData) {
+          return const SplashScreen(skipAuth: true);
+        }
+        
+        // Si no hay usuario, mostrar login
+        return const LoginScreen();
+      },
+    );
+  }
+}
+
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  final bool skipAuth;
+  
+  const SplashScreen({super.key, this.skipAuth = false});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -152,8 +190,12 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.watch<ThemeProvider>().isDarkMode;
+    final bgColor = isDark ? AuraColors.backgroundDark : AuraColors.backgroundLight;
+    final textColor = AuraColors.getAccentColor(isDark);
+    
     return Scaffold(
-      backgroundColor: AuraColors.backgroundDark,
+      backgroundColor: bgColor,
       body: Center(
         child: AnimatedBuilder(
           animation: _controller,
@@ -165,64 +207,45 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo - mantiene gradiente solo aquí
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        gradient: AuraColors.auraGradient,
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            blurRadius: 30,
-                            spreadRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.auto_awesome,
-                        color: Colors.white,
-                        size: 60,
-                      ),
+                    // Logo real de la app
+                    Image.asset(
+                      'assets/icons/aura_logo.png',
+                      width: 140,
+                      height: 140,
                     ),
                     const SizedBox(height: 32),
 
-                    // App Name - mantiene gradiente solo para "Aura"
-                    ShaderMask(
-                      shaderCallback: (bounds) =>
-                          AuraColors.auraGradient.createShader(
-                            Rect.fromLTWH(0, 0, bounds.width, bounds.height),
-                          ),
-                      child: const Text(
-                        'Aura',
-                        style: TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                    // App Name
+                    Text(
+                      'Aura',
+                      style: TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                        letterSpacing: 2,
                       ),
                     ),
                     const SizedBox(height: 8),
 
                     // Tagline
                     Text(
-                      'AI-Powered Visual Enhancement',
+                      'Your AI Assistant',
                       style: TextStyle(
                         fontSize: 16,
-                        color: AuraColors.textSecondary,
+                        color: textColor.withValues(alpha: 0.6),
+                        letterSpacing: 1,
                       ),
                     ),
-                    const SizedBox(height: 48),
+                    const SizedBox(height: 64),
 
                     // Loading indicator or error
                     if (!_hasError) ...[
                       SizedBox(
-                        width: 200,
+                        width: 180,
                         child: LinearProgressIndicator(
-                          backgroundColor: AuraColors.surfaceLight,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Colors.white,
+                          backgroundColor: textColor.withValues(alpha: 0.1),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            textColor.withValues(alpha: 0.8),
                           ),
                         ),
                       ),
@@ -242,14 +265,14 @@ class _SplashScreenState extends State<SplashScreen>
                         fontSize: 14,
                         color: _hasError
                             ? AuraColors.error
-                            : AuraColors.textMuted,
+                            : textColor.withValues(alpha: 0.5),
                       ),
                     ),
 
                     // Retry button if error
                     if (_hasError) ...[
                       const SizedBox(height: 24),
-                      ElevatedButton(
+                      OutlinedButton(
                         onPressed: () {
                           setState(() {
                             _hasError = false;
@@ -257,6 +280,10 @@ class _SplashScreenState extends State<SplashScreen>
                           });
                           _initializeApp();
                         },
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: textColor),
+                          foregroundColor: textColor,
+                        ),
                         child: const Text('Retry'),
                       ),
                     ],
