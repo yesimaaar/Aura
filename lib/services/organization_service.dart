@@ -17,11 +17,19 @@ class OrganizationService {
     _prefs = await SharedPreferences.getInstance();
   }
 
+  Future<SharedPreferences> get _safePrefs async {
+    if (_prefs == null) {
+      await init();
+    }
+    return _prefs!;
+  }
+
   // ==================== TASKS ====================
 
   Future<List<TaskItem>> getTasks() async {
     try {
-      final String? data = _prefs?.getString(_tasksKey);
+      final prefs = await _safePrefs;
+      final String? data = prefs.getString(_tasksKey);
       if (data == null) return [];
       final List<dynamic> jsonList = jsonDecode(data);
       return jsonList.map((e) => TaskItem.fromJson(e)).toList();
@@ -33,8 +41,9 @@ class OrganizationService {
 
   Future<void> saveTasks(List<TaskItem> tasks) async {
     try {
+      final prefs = await _safePrefs;
       final String data = jsonEncode(tasks.map((e) => e.toJson()).toList());
-      await _prefs?.setString(_tasksKey, data);
+      await prefs.setString(_tasksKey, data);
     } catch (e) {
       debugPrint('Error saving tasks: $e');
     }
@@ -44,7 +53,8 @@ class OrganizationService {
 
   Future<List<Reminder>> getReminders() async {
     try {
-      final String? data = _prefs?.getString(_remindersKey);
+      final prefs = await _safePrefs;
+      final String? data = prefs.getString(_remindersKey);
       if (data == null) return [];
       final List<dynamic> jsonList = jsonDecode(data);
       return jsonList.map((e) => Reminder.fromJson(e)).toList();
@@ -56,8 +66,9 @@ class OrganizationService {
 
   Future<void> saveReminders(List<Reminder> reminders) async {
     try {
+      final prefs = await _safePrefs;
       final String data = jsonEncode(reminders.map((e) => e.toJson()).toList());
-      await _prefs?.setString(_remindersKey, data);
+      await prefs.setString(_remindersKey, data);
     } catch (e) {
       debugPrint('Error saving reminders: $e');
     }
@@ -67,7 +78,8 @@ class OrganizationService {
 
   Future<List<Recipe>> getRecipes() async {
     try {
-      final String? data = _prefs?.getString(_recipesKey);
+      final prefs = await _safePrefs;
+      final String? data = prefs.getString(_recipesKey);
       if (data == null) return [];
       final List<dynamic> jsonList = jsonDecode(data);
       return jsonList.map((e) => Recipe.fromJson(e)).toList();
@@ -79,8 +91,9 @@ class OrganizationService {
 
   Future<void> saveRecipes(List<Recipe> recipes) async {
     try {
+      final prefs = await _safePrefs;
       final String data = jsonEncode(recipes.map((e) => e.toJson()).toList());
-      await _prefs?.setString(_recipesKey, data);
+      await prefs.setString(_recipesKey, data);
     } catch (e) {
       debugPrint('Error saving recipes: $e');
     }
@@ -90,7 +103,8 @@ class OrganizationService {
 
   Future<List<CalendarEvent>> getEvents() async {
     try {
-      final String? data = _prefs?.getString(_eventsKey);
+      final prefs = await _safePrefs;
+      final String? data = prefs.getString(_eventsKey);
       if (data == null) return [];
       final List<dynamic> jsonList = jsonDecode(data);
       return jsonList.map((e) => CalendarEvent.fromJson(e)).toList();
@@ -102,8 +116,9 @@ class OrganizationService {
 
   Future<void> saveEvents(List<CalendarEvent> events) async {
     try {
+      final prefs = await _safePrefs;
       final String data = jsonEncode(events.map((e) => e.toJson()).toList());
-      await _prefs?.setString(_eventsKey, data);
+      await prefs.setString(_eventsKey, data);
     } catch (e) {
       debugPrint('Error saving events: $e');
     }
@@ -113,7 +128,8 @@ class OrganizationService {
 
   Future<List<QuickNote>> getNotes() async {
     try {
-      final String? data = _prefs?.getString(_notesKey);
+      final prefs = await _safePrefs;
+      final String? data = prefs.getString(_notesKey);
       if (data == null) return [];
       final List<dynamic> jsonList = jsonDecode(data);
       return jsonList.map((e) => QuickNote.fromJson(e)).toList();
@@ -125,8 +141,9 @@ class OrganizationService {
 
   Future<void> saveNotes(List<QuickNote> notes) async {
     try {
+      final prefs = await _safePrefs;
       final String data = jsonEncode(notes.map((e) => e.toJson()).toList());
-      await _prefs?.setString(_notesKey, data);
+      await prefs.setString(_notesKey, data);
     } catch (e) {
       debugPrint('Error saving notes: $e');
     }
@@ -135,10 +152,11 @@ class OrganizationService {
   // ==================== CLEAR ALL ====================
 
   Future<void> clearAll() async {
-    await _prefs?.remove(_tasksKey);
-    await _prefs?.remove(_remindersKey);
-    await _prefs?.remove(_recipesKey);
-    await _prefs?.remove(_eventsKey);
-    await _prefs?.remove(_notesKey);
+    final prefs = await _safePrefs;
+    await prefs.remove(_tasksKey);
+    await prefs.remove(_remindersKey);
+    await prefs.remove(_recipesKey);
+    await prefs.remove(_eventsKey);
+    await prefs.remove(_notesKey);
   }
 }
