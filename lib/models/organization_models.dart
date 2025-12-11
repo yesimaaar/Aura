@@ -8,6 +8,7 @@ class TaskItem {
   final bool isCompleted;
   final String? category;
   final int priority; // 1: baja, 2: media, 3: alta
+  final bool hasAlarm;
 
   TaskItem({
     required this.id,
@@ -18,6 +19,7 @@ class TaskItem {
     this.isCompleted = false,
     this.category,
     this.priority = 2,
+    this.hasAlarm = false,
   });
 
   TaskItem copyWith({
@@ -29,6 +31,7 @@ class TaskItem {
     bool? isCompleted,
     String? category,
     int? priority,
+    bool? hasAlarm,
   }) {
     return TaskItem(
       id: id ?? this.id,
@@ -39,6 +42,7 @@ class TaskItem {
       isCompleted: isCompleted ?? this.isCompleted,
       category: category ?? this.category,
       priority: priority ?? this.priority,
+      hasAlarm: hasAlarm ?? this.hasAlarm,
     );
   }
 
@@ -51,6 +55,7 @@ class TaskItem {
     'isCompleted': isCompleted,
     'category': category,
     'priority': priority,
+    'hasAlarm': hasAlarm,
   };
 
   factory TaskItem.fromJson(Map<String, dynamic> json) => TaskItem(
@@ -62,6 +67,7 @@ class TaskItem {
     isCompleted: json['isCompleted'] ?? false,
     category: json['category'],
     priority: json['priority'] ?? 2,
+    hasAlarm: json['hasAlarm'] ?? false,
   );
 }
 
@@ -74,6 +80,7 @@ class Reminder {
   final bool isCompleted;
   final bool repeat;
   final String? repeatType; // daily, weekly, monthly
+  final bool hasAlarm;
 
   Reminder({
     required this.id,
@@ -83,6 +90,7 @@ class Reminder {
     this.isCompleted = false,
     this.repeat = false,
     this.repeatType,
+    this.hasAlarm = true,
   });
 
   Reminder copyWith({
@@ -93,6 +101,7 @@ class Reminder {
     bool? isCompleted,
     bool? repeat,
     String? repeatType,
+    bool? hasAlarm,
   }) {
     return Reminder(
       id: id ?? this.id,
@@ -102,6 +111,7 @@ class Reminder {
       isCompleted: isCompleted ?? this.isCompleted,
       repeat: repeat ?? this.repeat,
       repeatType: repeatType ?? this.repeatType,
+      hasAlarm: hasAlarm ?? this.hasAlarm,
     );
   }
 
@@ -113,6 +123,7 @@ class Reminder {
     'isCompleted': isCompleted,
     'repeat': repeat,
     'repeatType': repeatType,
+    'hasAlarm': hasAlarm,
   };
 
   factory Reminder.fromJson(Map<String, dynamic> json) => Reminder(
@@ -123,6 +134,7 @@ class Reminder {
     isCompleted: json['isCompleted'] ?? false,
     repeat: json['repeat'] ?? false,
     repeatType: json['repeatType'],
+    hasAlarm: json['hasAlarm'] ?? true,
   );
 }
 

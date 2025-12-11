@@ -1,5 +1,5 @@
 name: aura
-description: "Aura - AI-powered image enhancement and visual creativity app"
+description: "Aura - AI-powered personal organization assistant"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -15,11 +15,6 @@ dependencies:
   google_fonts: ^6.2.1
   flutter_animate: ^4.5.0
   
-  # Camera & Image
-  camera: ^0.11.1
-  image_picker: ^1.1.2
-  image: ^4.3.0
-  
   # State Management
   provider: ^6.1.2
   
@@ -31,9 +26,11 @@ dependencies:
   firebase_core: ^4.2.1
   firebase_auth: ^6.1.2
   cloud_firestore: ^6.1.0
-  
-  # Image Processing & ML (placeholders for future AI integration)
-  # tflite_flutter: ^0.11.0  # Uncomment when adding ML models
+  flutter_markdown: ^0.7.7+1
+  flutter_local_notifications: ^19.5.0
+  timezone: ^0.10.1
+  camera: ^0.11.3
+  image_picker: ^1.2.1
 
 dev_dependencies:
   flutter_test:
@@ -69,4 +66,3 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
-    - assets/models/

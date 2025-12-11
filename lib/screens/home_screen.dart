@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../core/theme/aura_theme.dart';
 import '../services/gemini_service.dart';
@@ -11,8 +11,10 @@ import '../services/auth_service.dart';
 import '../models/chat_message.dart';
 import '../providers/theme_provider.dart';
 import '../providers/organization_provider.dart';
+import '../providers/aura_provider.dart';
 import '../widgets/animated_aura_logo.dart';
 import '../widgets/chat_bubble.dart';
+import 'live_view_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,26 +27,24 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final GeminiService _geminiService = GeminiService();
+  // Usar el servicio de Gemini del Provider, no crear uno nuevo
+  GeminiService get _geminiService => Provider.of<AuraProvider>(context, listen: false).gemini;
+  
   final FirestoreService _firestoreService = FirestoreService();
   final AuthService _authService = AuthService();
-  final ImagePicker _imagePicker = ImagePicker();
 
   List<ChatMessage> _messages = [];
   bool _isLoading = false;
-  String? _selectedImageBase64;
   String? _currentChatId;
   StreamSubscription? _messagesSubscription;
 
   @override
   void initState() {
     super.initState();
-    _initializeServices();
-  }
-
-  Future<void> _initializeServices() async {
-    await _geminiService.initialize();
-    _createNewChat();
+    // Gemini ya está inicializado desde AuraProvider en el SplashScreen
+    // Solo preparamos el estado inicial para un nuevo chat
+    _messages = [];
+    _currentChatId = null;
   }
 
   @override
@@ -58,15 +58,32 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _createNewChat() async {
     _messagesSubscription?.cancel();
 
+    // Solo limpiar el estado sin crear en Firestore
+    // El chat se creará cuando se envíe el primer mensaje
+    setState(() {
+      _currentChatId = null;
+      _messages = [];
+    });
+  }
+
+  Future<String> _generateChatTitle(String firstMessage) async {
     try {
-      final chatId = await _firestoreService.createChat();
-      setState(() {
-        _currentChatId = chatId;
-        _messages = [];
-      });
-      _listenToMessages(chatId);
+      final prompt =
+          '''
+Genera un título corto y descriptivo (máximo 4-5 palabras) para una conversación que comienza con este mensaje:
+"$firstMessage"
+
+Responde SOLO con el título, sin comillas ni explicaciones.
+''';
+      final title = await _geminiService.sendMessage(prompt);
+      return title.trim().length > 40
+          ? '${title.trim().substring(0, 40)}...'
+          : title.trim();
     } catch (e) {
-      debugPrint('Error creating chat: $e');
+      // Fallback: usar el primer mensaje como título
+      return firstMessage.length > 30
+          ? '${firstMessage.substring(0, 30)}...'
+          : firstMessage;
     }
   }
 
@@ -83,8 +100,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _listenToMessages(String chatId) {
-    _messagesSubscription =
-        _firestoreService.getMessages(chatId).listen((messages) {
+    _messagesSubscription = _firestoreService.getMessages(chatId).listen((
+      messages,
+    ) {
       setState(() {
         _messages = messages;
       });
@@ -104,46 +122,129 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _pickImage() async {
-    final XFile? image = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1024,
-      maxHeight: 1024,
-      imageQuality: 85,
-    );
-
-    if (image != null) {
-      final bytes = await image.readAsBytes();
-      setState(() {
-        _selectedImageBase64 = base64Encode(bytes);
-      });
-    }
-  }
-
-  Future<void> _takePhoto() async {
-    final XFile? image = await _imagePicker.pickImage(
-      source: ImageSource.camera,
-      maxWidth: 1024,
-      maxHeight: 1024,
-      imageQuality: 85,
-    );
-
-    if (image != null) {
-      final bytes = await image.readAsBytes();
-      setState(() {
-        _selectedImageBase64 = base64Encode(bytes);
-      });
-    }
-  }
-
   void _processAuraActions(String response) {
-    final organizationProvider =
-        Provider.of<OrganizationProvider>(context, listen: false);
+    final organizationProvider = Provider.of<OrganizationProvider>(
+      context,
+      listen: false,
+    );
 
-    // Detectar acciones de tareas
+    // Detectar bloques de acción JSON [AURA_ACTION]...[/AURA_ACTION]
+    final actionRegex = RegExp(
+      r'\[AURA_ACTION\](.*?)\[/AURA_ACTION\]',
+      dotAll: true,
+    );
+
+    for (final match in actionRegex.allMatches(response)) {
+      final jsonStr = match.group(1)?.trim();
+      if (jsonStr != null && jsonStr.isNotEmpty) {
+        try {
+          final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+          final type = data['type'] as String?;
+
+          if (type == 'task') {
+            final title = data['title'] as String? ?? '';
+            final priorityStr = data['priority'] as String? ?? 'media';
+            final dateStr = data['dueDate'] as String?;
+            final hasAlarm = data['hasAlarm'] as bool? ?? false;
+            
+            if (title.isNotEmpty) {
+              DateTime? dueDate;
+              if (dateStr != null) {
+                try {
+                  dueDate = DateTime.parse(dateStr);
+                } catch (_) {}
+              }
+
+              int priority = 2;
+              if (priorityStr.toLowerCase() == 'alta') priority = 1;
+              if (priorityStr.toLowerCase() == 'baja') priority = 3;
+
+              organizationProvider.createTaskFromAI(
+                title: title,
+                priority: priority,
+                dueDate: dueDate,
+                hasAlarm: hasAlarm,
+              );
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Tarea creada: $title')),
+              );
+            }
+          } else if (type == 'reminder') {
+            final title = data['title'] as String? ?? '';
+            final dateTimeStr = data['dateTime'] as String?;
+            final hasAlarm = data['hasAlarm'] as bool? ?? true;
+
+            if (title.isNotEmpty && dateTimeStr != null) {
+              try {
+                final dateTime = DateTime.parse(dateTimeStr);
+                organizationProvider.createReminderFromAI(
+                  title: title,
+                  dateTime: dateTime,
+                  hasAlarm: hasAlarm,
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Recordatorio creado: $title')),
+                );
+              } catch (_) {}
+            }
+          } else if (type == 'event') {
+            final title = data['title'] as String? ?? '';
+            final startStr = data['startDate'] as String?;
+            final endStr = data['endDate'] as String?;
+
+            if (title.isNotEmpty && startStr != null) {
+              try {
+                final start = DateTime.parse(startStr);
+                final end = endStr != null
+                    ? DateTime.parse(endStr)
+                    : start.add(const Duration(hours: 1));
+                organizationProvider.createEventFromAI(
+                  title: title,
+                  startDate: start,
+                  endDate: end,
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Evento creado: $title')),
+                );
+              } catch (_) {}
+            }
+          } else if (type == 'recipe') {
+            final title = data['title'] as String? ?? '';
+            final ingredients = (data['ingredients'] as List<dynamic>?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                [];
+            final steps = (data['steps'] as List<dynamic>?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                [];
+            final prepTime = data['prepTime'] as int? ?? 30;
+
+            if (title.isNotEmpty) {
+              organizationProvider.createRecipeFromAI(
+                title: title,
+                ingredients: ingredients,
+                steps: steps,
+                prepTime: prepTime,
+              );
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Receta guardada: $title')),
+              );
+            }
+          }
+        } catch (e) {
+          debugPrint('Error parsing AURA_ACTION: $e');
+        }
+      }
+    }
+
+    // Mantener compatibilidad con formato antiguo (opcional, pero seguro)
+    // Detectar acciones de tareas (Legacy)
     final taskRegex = RegExp(
-        r'\[TASK:([^\]]+)\](?:\[PRIORITY:(alta|media|baja)\])?(?:\[DATE:([^\]]+)\])?',
-        caseSensitive: false);
+      r'\[TASK:([^\]]+)\](?:\[PRIORITY:(alta|media|baja)\])?(?:\[DATE:([^\]]+)\])?',
+      caseSensitive: false,
+    );
     for (final match in taskRegex.allMatches(response)) {
       final title = match.group(1)?.trim() ?? '';
       final priorityStr = match.group(2)?.toLowerCase() ?? 'media';
@@ -156,7 +257,7 @@ class _HomeScreenState extends State<HomeScreen> {
             dueDate = DateTime.parse(dateStr);
           } catch (_) {}
         }
-        
+
         int priority = 2;
         if (priorityStr == 'alta') priority = 1;
         if (priorityStr == 'baja') priority = 3;
@@ -168,115 +269,71 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     }
-
-    // Detectar acciones de recordatorios
-    final reminderRegex =
-        RegExp(r'\[REMINDER:([^\]]+)\]\[DATETIME:([^\]]+)\]');
-    for (final match in reminderRegex.allMatches(response)) {
-      final title = match.group(1)?.trim() ?? '';
-      final dateTimeStr = match.group(2);
-
-      if (title.isNotEmpty && dateTimeStr != null) {
-        try {
-          final dateTime = DateTime.parse(dateTimeStr);
-          organizationProvider.createReminderFromAI(
-            title: title,
-            dateTime: dateTime,
-          );
-        } catch (_) {}
-      }
-    }
-
-    // Detectar acciones de eventos
-    final eventRegex = RegExp(
-        r'\[EVENT:([^\]]+)\]\[START:([^\]]+)\](?:\[END:([^\]]+)\])?');
-    for (final match in eventRegex.allMatches(response)) {
-      final title = match.group(1)?.trim() ?? '';
-      final startStr = match.group(2);
-      final endStr = match.group(3);
-
-      if (title.isNotEmpty && startStr != null) {
-        try {
-          final start = DateTime.parse(startStr);
-          final end = endStr != null
-              ? DateTime.parse(endStr)
-              : start.add(const Duration(hours: 1));
-          organizationProvider.createEventFromAI(
-            title: title,
-            startDate: start,
-            endDate: end,
-          );
-        } catch (_) {}
-      }
-    }
-
-    // Detectar acciones de recetas
-    final recipeRegex = RegExp(
-        r'\[RECIPE:([^\]]+)\]\[INGREDIENTS:([^\]]+)\]\[STEPS:([^\]]+)\](?:\[TIME:(\d+)\])?');
-    for (final match in recipeRegex.allMatches(response)) {
-      final title = match.group(1)?.trim() ?? '';
-      final ingredientsStr = match.group(2) ?? '';
-      final stepsStr = match.group(3) ?? '';
-      final timeStr = match.group(4);
-
-      if (title.isNotEmpty) {
-        final ingredients =
-            ingredientsStr.split(',').map((e) => e.trim()).toList();
-        final steps = stepsStr.split('|').map((e) => e.trim()).toList();
-        final prepTime = timeStr != null ? int.tryParse(timeStr) ?? 30 : 30;
-
-        organizationProvider.createRecipeFromAI(
-          title: title,
-          ingredients: ingredients,
-          steps: steps,
-          prepTime: prepTime,
-        );
-      }
-    }
   }
 
   Future<void> _sendMessage() async {
     final message = _messageController.text.trim();
-    if (message.isEmpty && _selectedImageBase64 == null) return;
-    if (_currentChatId == null) return;
+    final auraProvider = Provider.of<AuraProvider>(context, listen: false);
+    final selectedImage = auraProvider.selectedImage;
+
+    if (message.isEmpty && selectedImage == null) return;
+
+    // Crear el chat si es el primer mensaje
+    bool isFirstMessage = _currentChatId == null;
+    if (isFirstMessage) {
+      try {
+        final chatId = await _firestoreService.createChat();
+        setState(() {
+          _currentChatId = chatId;
+        });
+        _listenToMessages(chatId);
+      } catch (e) {
+        debugPrint('Error creating chat: $e');
+        return;
+      }
+    }
+
+    String? imageBase64;
+    if (selectedImage != null) {
+      try {
+        final bytes = await File(selectedImage.path).readAsBytes();
+        imageBase64 = base64Encode(bytes);
+      } catch (e) {
+        debugPrint('Error encoding image: $e');
+      }
+    }
 
     final userMessage = ChatMessage(
       content: message,
       isUser: true,
       timestamp: DateTime.now(),
-      imageBase64: _selectedImageBase64,
+      imageBase64: imageBase64,
     );
 
     // Guardar mensaje del usuario en Firestore
     await _firestoreService.addMessage(_currentChatId!, userMessage);
 
-    // Actualizar título del chat si es el primer mensaje
-    if (_messages.length <= 1 && message.isNotEmpty) {
-      String title =
-          message.length > 30 ? '${message.substring(0, 30)}...' : message;
-      await _firestoreService.updateChatTitle(_currentChatId!, title);
-    }
-
     _messageController.clear();
-    final imageToSend = _selectedImageBase64;
+    final messageForTitle = message;
     setState(() {
-      _selectedImageBase64 = null;
       _isLoading = true;
     });
 
     try {
-      final organizationProvider =
-          Provider.of<OrganizationProvider>(context, listen: false);
-      final orgContext = organizationProvider.getSummaryForAI();
-
       String response;
-      if (imageToSend != null) {
-        response = await _geminiService.sendMessageWithImage(
-          message.isEmpty ? "¿Qué ves en esta imagen?" : message,
-          imageToSend,
-          organizationContext: orgContext,
-        );
+      
+      if (selectedImage != null) {
+        // Multimodal chat
+        response = await auraProvider.chatWithAura(message.isEmpty ? "Analiza esta imagen" : message);
+        auraProvider.clearSelectedImage();
       } else {
+        // Text chat with context
+        final organizationProvider = Provider.of<OrganizationProvider>(
+          context,
+          listen: false,
+        );
+        final orgContext = organizationProvider.getSummaryForAI();
+
         response = await _geminiService.sendMessage(
           message,
           organizationContext: orgContext,
@@ -287,17 +344,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Limpiar los tags de acciones de la respuesta visible
       String cleanResponse = response
+          .replaceAll(RegExp(r'\[AURA_ACTION\].*?\[/AURA_ACTION\]', dotAll: true), '')
           .replaceAll(
-              RegExp(
-                  r'\[TASK:[^\]]+\](\[PRIORITY:[^\]]+\])?(\[DATE:[^\]]+\])?'),
-              '')
+            RegExp(r'\[TASK:[^\]]+\](\[PRIORITY:[^\]]+\])?(\[DATE:[^\]]+\])?'),
+            '',
+          )
           .replaceAll(RegExp(r'\[REMINDER:[^\]]+\]\[DATETIME:[^\]]+\]'), '')
           .replaceAll(
-              RegExp(r'\[EVENT:[^\]]+\]\[START:[^\]]+\](\[END:[^\]]+\])?'), '')
+            RegExp(r'\[EVENT:[^\]]+\]\[START:[^\]]+\](\[END:[^\]]+\])?'),
+            '',
+          )
           .replaceAll(
-              RegExp(
-                  r'\[RECIPE:[^\]]+\]\[INGREDIENTS:[^\]]+\]\[STEPS:[^\]]+\](\[TIME:\d+\])?'),
-              '')
+            RegExp(
+              r'\[RECIPE:[^\]]+\]\[INGREDIENTS:[^\]]+\]\[STEPS:[^\]]+\](\[TIME:\d+\])?',
+            ),
+            '',
+          )
           .trim();
 
       final aiMessage = ChatMessage(
@@ -308,6 +370,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Guardar respuesta de la IA en Firestore
       await _firestoreService.addMessage(_currentChatId!, aiMessage);
+
+      // Si es el primer mensaje, generar título con IA
+      if (isFirstMessage) {
+        final title = await _generateChatTitle(messageForTitle.isNotEmpty ? messageForTitle : "Análisis de imagen");
+        await _firestoreService.updateChatTitle(_currentChatId!, title);
+      }
     } catch (e) {
       final errorMessage = ChatMessage(
         content:
@@ -373,17 +441,33 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHeader(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      decoration: BoxDecoration(
+        color: AuraColors.getBackgroundColor(isDark),
+        border: Border(
+          bottom: BorderSide(
+            color: AuraColors.getSurfaceColor(isDark),
+            width: 1,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
         children: [
-          AnimatedAuraLogo(height: 44, showLogo: _messages.isNotEmpty),
+          AnimatedAuraLogo(height: 36, showLogo: _messages.isNotEmpty),
           const Spacer(),
           GestureDetector(
             onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
             child: Container(
-              width: 44,
-              height: 44,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: AuraColors.getSurfaceColor(isDark),
                 borderRadius: BorderRadius.circular(12),
@@ -391,7 +475,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Icon(
                 Icons.menu,
                 color: AuraColors.getTextPrimary(isDark),
-                size: 24,
+                size: 22,
               ),
             ),
           ),
@@ -412,10 +496,7 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.all(20),
               child: Row(
                 children: [
-                  Image.asset(
-                    'assets/icons/aura_logo_header.png',
-                    height: 36,
-                  ),
+                  Image.asset('assets/icons/aura_logo_header.png', height: 36),
                   const Spacer(),
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
@@ -445,8 +526,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: AuraColors.getSurfaceColor(isDark),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color:
-                          AuraColors.getAccentColor(isDark).withValues(alpha: 0.3),
+                      color: AuraColors.getAccentColor(
+                        isDark,
+                      ).withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -651,10 +733,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 12),
             Text(
               label,
-              style: TextStyle(
-                color: textColor,
-                fontWeight: FontWeight.w500,
-              ),
+              style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
             ),
             const Spacer(),
             Icon(
@@ -836,14 +915,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildInputArea(bool isDark) {
+    final auraProvider = Provider.of<AuraProvider>(context);
+    final selectedImage = auraProvider.selectedImage;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AuraColors.getBackgroundColor(isDark),
         border: Border(
-          top: BorderSide(
-            color: AuraColors.getSurfaceColor(isDark),
-          ),
+          top: BorderSide(color: AuraColors.getSurfaceColor(isDark)),
         ),
       ),
       child: SafeArea(
@@ -851,20 +931,20 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (_selectedImageBase64 != null)
+            if (selectedImage != null)
               Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                height: 80,
+                margin: const EdgeInsets.only(bottom: 12),
+                height: 100,
                 child: Row(
                   children: [
                     Stack(
                       children: [
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.memory(
-                            base64Decode(_selectedImageBase64!),
-                            height: 80,
-                            width: 80,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.file(
+                            File(selectedImage.path),
+                            height: 100,
+                            width: 100,
                             fit: BoxFit.cover,
                           ),
                         ),
@@ -872,8 +952,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           top: 4,
                           right: 4,
                           child: GestureDetector(
-                            onTap: () =>
-                                setState(() => _selectedImageBase64 = null),
+                            onTap: () => auraProvider.clearSelectedImage(),
                             child: Container(
                               padding: const EdgeInsets.all(4),
                               decoration: const BoxDecoration(
@@ -895,44 +974,26 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             Row(
               children: [
-                GestureDetector(
-                  onTap: _pickImage,
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AuraColors.getSurfaceColor(isDark),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.photo_library_outlined,
-                      color: AuraColors.getTextSecondary(isDark),
-                    ),
-                  ),
+                IconButton(
+                  icon: Icon(Icons.view_in_ar, color: AuraColors.getAccentColor(isDark)),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LiveViewScreen()),
+                    );
+                  },
+                  tooltip: 'Vista en vivo',
                 ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: _takePhoto,
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AuraColors.getSurfaceColor(isDark),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.camera_alt_outlined,
-                      color: AuraColors.getTextSecondary(isDark),
-                    ),
-                  ),
+                IconButton(
+                  icon: Icon(Icons.add, color: AuraColors.getAccentColor(isDark)),
+                  onPressed: () => _showAttachmentOptions(context, isDark),
+                  tooltip: 'Adjuntar',
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
                     controller: _messageController,
-                    style: TextStyle(
-                      color: AuraColors.getTextPrimary(isDark),
-                    ),
+                    style: TextStyle(color: AuraColors.getTextPrimary(isDark)),
                     decoration: InputDecoration(
                       hintText: 'Escribe un mensaje...',
                       hintStyle: TextStyle(
@@ -970,6 +1031,67 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAttachmentOptions(BuildContext context, bool isDark) {
+    final auraProvider = Provider.of<AuraProvider>(context, listen: false);
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AuraColors.getSurfaceColor(isDark),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.image, color: AuraColors.getAccentColor(isDark)),
+              title: Text(
+                'Galería',
+                style: TextStyle(color: AuraColors.getTextPrimary(isDark)),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                auraProvider.pickFromGallery();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.camera_alt, color: AuraColors.getAccentColor(isDark)),
+              title: Text(
+                'Tomar foto',
+                style: TextStyle(color: AuraColors.getTextPrimary(isDark)),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Implement take photo directly or reuse LiveView
+                // For now, we can use LiveView as it is the camera interface
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LiveViewScreen()),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.attach_file, color: AuraColors.getAccentColor(isDark)),
+              title: Text(
+                'Subir archivo',
+                style: TextStyle(color: AuraColors.getTextPrimary(isDark)),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Implement file picker
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Próximamente: Subir archivos')),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
           ],
         ),
       ),

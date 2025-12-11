@@ -10,29 +10,63 @@ import 'providers/aura_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/organization_provider.dart';
 import 'services/permission_service.dart';
+import 'services/notification_service.dart';
 import 'screens/home_screen.dart';
-import 'screens/editor_screen.dart';
 import 'screens/organization_screen.dart';
+import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  print('🏁 MAIN: WidgetsFlutterBinding initialized');
 
   // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  try {
+    if (Firebase.apps.isEmpty) {
+      print('🏁 MAIN: Initializing Firebase...');
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      print('🏁 MAIN: Firebase initialized');
+    } else {
+      print('🏁 MAIN: Firebase already initialized');
+    }
+  } catch (e) {
+    print('⚠️ MAIN: Firebase init error (continuing): $e');
+  }
 
   // Set preferred orientations
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  try {
+    print('🏁 MAIN: Setting orientations...');
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+    print('🏁 MAIN: Orientations set');
+  } catch (e) {
+    print('⚠️ MAIN: Orientation error: $e');
+  }
 
   // Initialize ThemeProvider
   final themeProvider = ThemeProvider();
-  await themeProvider.init();
+  try {
+    print('🏁 MAIN: Initializing ThemeProvider...');
+    await themeProvider.init();
+    print('🏁 MAIN: ThemeProvider initialized');
+  } catch (e) {
+    print('⚠️ MAIN: ThemeProvider error: $e');
+  }
 
+  // Initialize NotificationService
+  try {
+    print('🏁 MAIN: Initializing NotificationService...');
+    await NotificationService().init();
+    print('🏁 MAIN: NotificationService initialized');
+  } catch (e) {
+    print('⚠️ MAIN: NotificationService error: $e');
+  }
+
+  print('🏁 MAIN: Calling runApp...');
   runApp(AuraApp(themeProvider: themeProvider));
 }
 
@@ -79,8 +113,8 @@ class AuraApp extends StatelessWidget {
             routes: {
               '/login': (context) => const LoginScreen(),
               '/home': (context) => const HomeScreen(),
-              '/editor': (context) => const EditorScreen(),
               '/organization': (context) => const OrganizationScreen(),
+              '/settings': (context) => const SettingsScreen(),
             },
           );
         },
@@ -95,20 +129,26 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print('🔒 AuthWrapper: Building...');
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
+        print('🔒 AuthWrapper: Stream update. State: ${snapshot.connectionState}, HasData: ${snapshot.hasData}');
+        
         // Mientras carga, mostrar splash
         if (snapshot.connectionState == ConnectionState.waiting) {
+          print('🔒 AuthWrapper: Waiting for auth state...');
           return const SplashScreen();
         }
         
         // Si hay usuario, mostrar home
         if (snapshot.hasData) {
+          print('🔒 AuthWrapper: User logged in: ${snapshot.data?.uid}');
           return const SplashScreen(skipAuth: true);
         }
         
         // Si no hay usuario, mostrar login
+        print('🔒 AuthWrapper: No user, showing LoginScreen');
         return const LoginScreen();
       },
     );
@@ -135,6 +175,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
+    print('✨ SplashScreen: initState');
     _controller = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
@@ -157,28 +198,44 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _initializeApp() async {
     try {
       // Request permissions
+      print('🚀 SplashScreen: Requesting permissions...');
       setState(() => _statusText = 'Requesting permissions...');
+      
       final permissionService = PermissionService();
-      await permissionService.requestAllPermissions();
+      // Timeout permissions request to avoid hanging forever
+      await permissionService.requestAllPermissions().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          print('⚠️ SplashScreen: Permissions request timed out');
+          return {};
+        },
+      );
+      print('✅ SplashScreen: Permissions done');
 
       // Initialize provider
+      print('🚀 SplashScreen: Loading AI models...');
       setState(() => _statusText = 'Loading AI models...');
+      
+      if (!mounted) return;
       final provider = context.read<AuraProvider>();
       await provider.initialize();
+      print('✅ SplashScreen: Provider initialized');
 
       setState(() => _statusText = 'Ready!');
       await Future.delayed(const Duration(milliseconds: 500));
+      print('✅ SplashScreen: Navigating to home...');
 
       if (mounted) {
-        if (context.mounted) {
-          Navigator.pushReplacementNamed(context, '/home');
-        }
+        Navigator.pushReplacementNamed(context, '/home');
       }
     } catch (e) {
-      setState(() {
-        _hasError = true;
-        _statusText = 'Error: ${e.toString()}';
-      });
+      print('❌ SplashScreen: Error - $e');
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _statusText = 'Error: ${e.toString()}';
+        });
+      }
     }
   }
 
@@ -190,6 +247,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    print('✨ SplashScreen: build called. Status: $_statusText');
     final isDark = context.watch<ThemeProvider>().isDarkMode;
     final bgColor = isDark ? AuraColors.backgroundDark : AuraColors.backgroundLight;
     final textColor = AuraColors.getAccentColor(isDark);

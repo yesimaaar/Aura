@@ -5,6 +5,7 @@ import '../core/theme/aura_theme.dart';
 import '../models/organization_models.dart';
 import '../providers/organization_provider.dart';
 import '../providers/theme_provider.dart';
+import '../services/notification_service.dart';
 import '../widgets/aura_gradient_text.dart';
 
 class OrganizationScreen extends StatefulWidget {
@@ -25,6 +26,7 @@ class _OrganizationScreenState extends State<OrganizationScreen>
     _tabController = TabController(length: 4, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<OrganizationProvider>().initialize();
+      NotificationService().requestPermissions();
     });
   }
 
@@ -41,45 +43,70 @@ class _OrganizationScreenState extends State<OrganizationScreen>
 
     return Scaffold(
       backgroundColor: AuraColors.getBackgroundColor(isDark),
-      appBar: AppBar(
-        backgroundColor: AuraColors.getBackgroundColor(isDark),
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios,
-            color: AuraColors.getTextPrimary(isDark),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const AuraGradientText(
-          'Organización',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AuraColors.getTextPrimary(isDark),
-          unselectedLabelColor: AuraColors.getTextMuted(isDark),
-          indicatorColor: AuraColors.getAccentColor(isDark),
-          indicatorSize: TabBarIndicatorSize.label,
-          tabs: const [
-            Tab(icon: Icon(Icons.calendar_month), text: 'Calendario'),
-            Tab(icon: Icon(Icons.check_circle_outline), text: 'Tareas'),
-            Tab(
-              icon: Icon(Icons.notifications_outlined),
-              text: 'Recordatorios',
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Custom Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.arrow_back_ios, color: AuraColors.getTextPrimary(isDark)),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const Expanded(
+                    child: AuraGradientText(
+                      'Organización',
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            Tab(icon: Icon(Icons.restaurant_menu), text: 'Recetas'),
+            
+            // Custom Tab Selector
+            Container(
+              height: 46,
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: AuraColors.getSurfaceColor(isDark),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: TabBar(
+                controller: _tabController,
+                indicator: BoxDecoration(
+                  color: AuraColors.getAccentColor(isDark),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                labelColor: isDark ? Colors.black : Colors.white,
+                unselectedLabelColor: AuraColors.getTextMuted(isDark),
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                tabs: const [
+                  Tab(text: 'Calendario'),
+                  Tab(text: 'Tareas'),
+                  Tab(text: 'Recordatorios'),
+                  Tab(text: 'Recetas'),
+                ],
+                dividerColor: Colors.transparent,
+                padding: const EdgeInsets.all(4),
+                indicatorSize: TabBarIndicatorSize.tab,
+              ),
+            ),
+
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildCalendarTab(isDark),
+                  _buildTasksTab(isDark),
+                  _buildRemindersTab(isDark),
+                  _buildRecipesTab(isDark),
+                ],
+              ),
+            ),
           ],
         ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildCalendarTab(isDark),
-          _buildTasksTab(isDark),
-          _buildRemindersTab(isDark),
-          _buildRecipesTab(isDark),
-        ],
       ),
     );
   }
@@ -163,7 +190,6 @@ class _OrganizationScreenState extends State<OrganizationScreen>
   }
 
   Widget _buildCalendarGrid(bool isDark, OrganizationProvider provider) {
-    final datesWithItems = provider.getDatesWithItems();
     final firstDayOfMonth = DateTime(
       _focusedMonth.year,
       _focusedMonth.month,
@@ -232,9 +258,23 @@ class _OrganizationScreenState extends State<OrganizationScreen>
                   DateTime.now().year == date.year &&
                   DateTime.now().month == date.month &&
                   DateTime.now().day == date.day;
-              final hasItems = datesWithItems.contains(
-                DateTime(date.year, date.month, date.day),
-              );
+              
+              // Check for specific items on this date
+              final hasEvents = provider.events.any((e) => 
+                e.startDate.year == date.year && 
+                e.startDate.month == date.month && 
+                e.startDate.day == date.day);
+                
+              final hasTasks = provider.tasks.any((t) => 
+                t.dueDate != null &&
+                t.dueDate!.year == date.year && 
+                t.dueDate!.month == date.month && 
+                t.dueDate!.day == date.day);
+                
+              final hasReminders = provider.reminders.any((r) => 
+                r.dateTime.year == date.year && 
+                r.dateTime.month == date.month && 
+                r.dateTime.day == date.day);
 
               return GestureDetector(
                 onTap: () => provider.setSelectedDate(date),
@@ -244,7 +284,7 @@ class _OrganizationScreenState extends State<OrganizationScreen>
                     color: isSelected
                         ? AuraColors.getAccentColor(isDark)
                         : isToday
-                        ? AuraColors.getAccentColor(isDark).withOpacity(0.2)
+                        ? AuraColors.getAccentColor(isDark).withValues(alpha: 0.2)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -262,16 +302,43 @@ class _OrganizationScreenState extends State<OrganizationScreen>
                               : FontWeight.normal,
                         ),
                       ),
-                      if (hasItems && !isSelected)
+                      if (!isSelected)
                         Positioned(
                           bottom: 4,
-                          child: Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: AuraColors.getAccentColor(isDark),
-                              shape: BoxShape.circle,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (hasEvents)
+                                Container(
+                                  width: 4,
+                                  height: 4,
+                                  margin: const EdgeInsets.symmetric(horizontal: 1),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.blue,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              if (hasTasks)
+                                Container(
+                                  width: 4,
+                                  height: 4,
+                                  margin: const EdgeInsets.symmetric(horizontal: 1),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.green,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              if (hasReminders)
+                                Container(
+                                  width: 4,
+                                  height: 4,
+                                  margin: const EdgeInsets.symmetric(horizontal: 1),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.orange,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                     ],
@@ -280,16 +347,56 @@ class _OrganizationScreenState extends State<OrganizationScreen>
               );
             },
           ),
+          const SizedBox(height: 16),
+          // Legend
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildLegendItem(isDark, 'Eventos', Colors.blue),
+              const SizedBox(width: 16),
+              _buildLegendItem(isDark, 'Tareas', Colors.green),
+              const SizedBox(width: 16),
+              _buildLegendItem(isDark, 'Recordatorios', Colors.orange),
+            ],
+          ),
         ],
       ),
     ).animate().fadeIn(delay: 100.ms);
   }
 
+  Widget _buildLegendItem(bool isDark, String label, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: AuraColors.getTextSecondary(isDark),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildDayEvents(bool isDark, OrganizationProvider provider) {
     final events = provider.eventsForSelectedDate;
     final tasks = provider.tasksForSelectedDate;
+    final reminders = provider.reminders.where((r) => 
+      r.dateTime.year == provider.selectedDate.year &&
+      r.dateTime.month == provider.selectedDate.month &&
+      r.dateTime.day == provider.selectedDate.day
+    ).toList();
 
-    if (events.isEmpty && tasks.isEmpty) {
+    if (events.isEmpty && tasks.isEmpty && reminders.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -301,18 +408,17 @@ class _OrganizationScreenState extends State<OrganizationScreen>
             ),
             const SizedBox(height: 12),
             Text(
-              'Sin eventos para este día',
+              'Sin actividades para este día',
               style: TextStyle(color: AuraColors.getTextMuted(isDark)),
             ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () => _showAddEventDialog(isDark, provider),
-              icon: const Icon(Icons.add),
-              label: const Text('Agregar evento'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AuraColors.getAccentColor(isDark),
-                foregroundColor: Colors.white,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildQuickAddButton(isDark, 'Evento', Icons.event, () => _showAddEventDialog(isDark, provider)),
+                const SizedBox(width: 12),
+                _buildQuickAddButton(isDark, 'Tarea', Icons.check_circle_outline, () => _showAddTaskDialog(isDark, provider)),
+              ],
             ),
           ],
         ),
@@ -323,14 +429,32 @@ class _OrganizationScreenState extends State<OrganizationScreen>
       padding: const EdgeInsets.symmetric(horizontal: 16),
       children: [
         if (events.isNotEmpty) ...[
-          _buildSectionHeader(isDark, 'Eventos', Icons.event),
+          _buildSectionHeader(isDark, 'Eventos', Icons.event, color: Colors.blue),
           ...events.map((e) => _buildEventCard(isDark, e, provider)),
         ],
         if (tasks.isNotEmpty) ...[
-          _buildSectionHeader(isDark, 'Tareas', Icons.check_circle_outline),
+          _buildSectionHeader(isDark, 'Tareas', Icons.check_circle_outline, color: Colors.green),
           ...tasks.map((t) => _buildTaskCard(isDark, t, provider)),
         ],
+        if (reminders.isNotEmpty) ...[
+          _buildSectionHeader(isDark, 'Recordatorios', Icons.notifications_outlined, color: Colors.orange),
+          ...reminders.map((r) => _buildReminderCard(isDark, r, provider)),
+        ],
       ],
+    );
+  }
+
+  Widget _buildQuickAddButton(bool isDark, String label, IconData icon, VoidCallback onTap) {
+    return ElevatedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AuraColors.getSurfaceColor(isDark),
+        foregroundColor: AuraColors.getTextPrimary(isDark),
+        elevation: 0,
+        side: BorderSide(color: AuraColors.getTextMuted(isDark).withValues(alpha: 0.2)),
+      ),
     );
   }
 
@@ -510,7 +634,7 @@ class _OrganizationScreenState extends State<OrganizationScreen>
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: AuraColors.getAccentColor(isDark).withOpacity(0.2),
+                    color: AuraColors.getAccentColor(isDark).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -614,7 +738,7 @@ class _OrganizationScreenState extends State<OrganizationScreen>
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isPast && !reminder.isCompleted
-                ? Colors.orange.withOpacity(0.5)
+                ? Colors.orange.withValues(alpha: 0.5)
                 : Colors.transparent,
           ),
         ),
@@ -625,8 +749,8 @@ class _OrganizationScreenState extends State<OrganizationScreen>
               height: 48,
               decoration: BoxDecoration(
                 color: reminder.isCompleted
-                    ? Colors.green.withOpacity(0.2)
-                    : AuraColors.getAccentColor(isDark).withOpacity(0.2),
+                    ? Colors.green.withValues(alpha: 0.2)
+                    : AuraColors.getAccentColor(isDark).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
@@ -789,7 +913,7 @@ class _OrganizationScreenState extends State<OrganizationScreen>
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AuraColors.getAccentColor(isDark).withOpacity(0.2),
+                    color: AuraColors.getAccentColor(isDark).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
@@ -866,26 +990,6 @@ class _OrganizationScreenState extends State<OrganizationScreen>
   }
 
   // ==================== HELPER WIDGETS ====================
-
-  Widget _buildSectionHeader(bool isDark, String title, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: AuraColors.getTextSecondary(isDark)),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AuraColors.getTextPrimary(isDark),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildEventCard(
     bool isDark,
@@ -982,7 +1086,7 @@ class _OrganizationScreenState extends State<OrganizationScreen>
             'Pídele a Aura que te ayude a agregar',
             style: TextStyle(
               fontSize: 14,
-              color: AuraColors.getTextMuted(isDark).withOpacity(0.7),
+              color: AuraColors.getTextMuted(isDark).withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -997,6 +1101,7 @@ class _OrganizationScreenState extends State<OrganizationScreen>
     final descController = TextEditingController();
     DateTime? selectedDate;
     int priority = 2;
+    bool hasAlarm = false;
 
     showModalBottomSheet(
       context: context,
@@ -1067,7 +1172,29 @@ class _OrganizationScreenState extends State<OrganizationScreen>
                     lastDate: DateTime.now().add(const Duration(days: 365)),
                   );
                   if (date != null) {
-                    setModalState(() => selectedDate = date);
+                    if (context.mounted) {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: const TimeOfDay(hour: 9, minute: 0),
+                      );
+                      if (time != null) {
+                        setModalState(() => selectedDate = DateTime(
+                              date.year,
+                              date.month,
+                              date.day,
+                              time.hour,
+                              time.minute,
+                            ));
+                      } else {
+                        setModalState(() => selectedDate = DateTime(
+                              date.year,
+                              date.month,
+                              date.day,
+                              23,
+                              59,
+                            ));
+                      }
+                    }
                   }
                 },
                 child: Container(
@@ -1086,7 +1213,7 @@ class _OrganizationScreenState extends State<OrganizationScreen>
                       const SizedBox(width: 12),
                       Text(
                         selectedDate != null
-                            ? _formatDate(selectedDate!)
+                            ? _formatDateTime(selectedDate!)
                             : 'Fecha límite (opcional)',
                         style: TextStyle(
                           color: selectedDate != null
@@ -1123,6 +1250,30 @@ class _OrganizationScreenState extends State<OrganizationScreen>
                   }),
                 ],
               ),
+              const SizedBox(height: 12),
+              // Alarm switch
+              Row(
+                children: [
+                  Icon(
+                    Icons.notifications_active_outlined,
+                    color: AuraColors.getTextSecondary(isDark),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Recordar con notificación',
+                    style: TextStyle(
+                      color: AuraColors.getTextPrimary(isDark),
+                    ),
+                  ),
+                  const Spacer(),
+                  Switch(
+                    value: hasAlarm,
+                    onChanged: (v) => setModalState(() => hasAlarm = v),
+                    activeTrackColor: AuraColors.getAccentColor(isDark),
+                  ),
+                ],
+              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -1139,6 +1290,7 @@ class _OrganizationScreenState extends State<OrganizationScreen>
                           createdAt: DateTime.now(),
                           dueDate: selectedDate,
                           priority: priority,
+                          hasAlarm: hasAlarm,
                         ),
                       );
                       Navigator.pop(context);
@@ -1180,7 +1332,7 @@ class _OrganizationScreenState extends State<OrganizationScreen>
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             color: isSelected
-                ? colors[value]!.withOpacity(0.2)
+                ? colors[value]!.withValues(alpha: 0.2)
                 : AuraColors.getSurfaceColor(isDark),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
@@ -1206,6 +1358,7 @@ class _OrganizationScreenState extends State<OrganizationScreen>
   void _showAddReminderDialog(bool isDark, OrganizationProvider provider) {
     final titleController = TextEditingController();
     DateTime selectedDateTime = DateTime.now().add(const Duration(hours: 1));
+    bool hasAlarm = true;
 
     showModalBottomSheet(
       context: context,
@@ -1301,6 +1454,30 @@ class _OrganizationScreenState extends State<OrganizationScreen>
                   ),
                 ),
               ),
+              const SizedBox(height: 12),
+              // Alarm switch
+              Row(
+                children: [
+                  Icon(
+                    Icons.notifications_active_outlined,
+                    color: AuraColors.getTextSecondary(isDark),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Notificarme',
+                    style: TextStyle(
+                      color: AuraColors.getTextPrimary(isDark),
+                    ),
+                  ),
+                  const Spacer(),
+                  Switch(
+                    value: hasAlarm,
+                    onChanged: (v) => setModalState(() => hasAlarm = v),
+                    activeTrackColor: AuraColors.getAccentColor(isDark),
+                  ),
+                ],
+              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -1312,6 +1489,7 @@ class _OrganizationScreenState extends State<OrganizationScreen>
                           id: DateTime.now().millisecondsSinceEpoch.toString(),
                           title: titleController.text.trim(),
                           dateTime: selectedDateTime,
+                          hasAlarm: hasAlarm,
                         ),
                       );
                       Navigator.pop(context);
@@ -1412,7 +1590,7 @@ class _OrganizationScreenState extends State<OrganizationScreen>
                   Switch(
                     value: isAllDay,
                     onChanged: (v) => setModalState(() => isAllDay = v),
-                    activeColor: AuraColors.getAccentColor(isDark),
+                    activeTrackColor: AuraColors.getAccentColor(isDark),
                   ),
                 ],
               ),
@@ -1704,7 +1882,7 @@ class _OrganizationScreenState extends State<OrganizationScreen>
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: AuraColors.getAccentColor(isDark).withOpacity(0.2),
+                    color: AuraColors.getAccentColor(isDark).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -1848,5 +2026,25 @@ class _OrganizationScreenState extends State<OrganizationScreen>
 
   String _formatTime(DateTime dt) {
     return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildSectionHeader(bool isDark, String title, IconData icon, {Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color ?? AuraColors.getAccentColor(isDark)),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AuraColors.getTextPrimary(isDark),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

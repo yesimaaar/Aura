@@ -12,130 +12,98 @@
   <a href="#características">Características</a> •
   <a href="#tecnologías">Tecnologías</a> •
   <a href="#instalación">Instalación</a> •
-  <a href="#uso">Uso</a> •
-  <a href="#capturas">Capturas</a>
+  <a href="#uso">Uso</a>
 </p>
 
 ---
 
 ## 📱 Descripción
 
-**Aura** es una aplicación móvil impulsada por inteligencia artificial que te ayuda a organizar tu vida de manera visual e intuitiva. Usando la potencia de Google Gemini AI, Aura puede analizar imágenes, crear planes de organización, sugerir recetas, armar outfits y gestionar tu calendario, tareas y recordatorios.
+**Aura** es una aplicación móvil revolucionaria que transforma tu entorno en un espacio organizado utilizando inteligencia artificial avanzada. A diferencia de los asistentes tradicionales, Aura **ve** lo que tú ves.
 
-## ⚡ Características
+Utilizando la potencia de **Google Gemini 2.0 Flash**, Aura ofrece una experiencia de "Live View" (Vista en Vivo) que analiza tu entorno en tiempo real, ofreciendo sugerencias, recetas y tareas de organización al instante. Simplemente apunta tu cámara y deja que Aura organice tu mundo.
 
-### 🤖 Chat con IA
-- Conversación natural en español con Aura
-- Análisis de imágenes en tiempo real
-- Respuestas contextuales y personalizadas
-- La IA puede crear tareas, recordatorios, eventos y recetas automáticamente
+## ⚡ Características Principales
 
-### 📸 Análisis Visual
-- **Organización de espacios**: Analiza tu habitación, oficina o cualquier espacio y recibe un plan de organización
-- **Recetas inteligentes**: Toma foto de tu nevera y obtén recetas con los ingredientes disponibles
-- **Outfits**: Fotografía tu ropa y recibe sugerencias de combinaciones
-- **Vista en vivo**: Análisis en tiempo real con la cámara
+### 👁️ Live View (Vista en Vivo)
+La joya de la corona de Aura. Una interfaz de cámara aumentada que:
+- **Analiza en tiempo real**: Comentarios instantáneos sobre lo que la cámara está viendo (estilo AR).
+- **Modo Continuo**: Aura observa constantemente y te da feedback sin que tengas que pulsar nada.
+- **Captura Inteligente**: Congela el momento para un análisis profundo.
 
-### 📅 Sistema de Organización
-- **Calendario**: Vista mensual con eventos y tareas
-- **Tareas**: Lista de pendientes con prioridades y fechas límite
-- **Recordatorios**: Alertas programadas con repetición
-- **Recetas**: Biblioteca personal de recetas con ingredientes y pasos
+### 🧠 Auto-Organización Inteligente
+Aura no solo te dice qué hacer, lo hace por ti. Con el botón **"Agregar a Organización (Auto)"**:
+1. Aura analiza la imagen capturada.
+2. Determina automáticamente si es una **Tarea**, una **Receta** o un **Recordatorio**.
+3. Extrae datos estructurados (ingredientes, pasos, fechas, prioridades) y los guarda en tu sistema de organización sin que escribas una sola palabra.
 
-### 🎨 Editor de Imágenes
-- Ajustes de brillo, contraste y saturación
-- Filtros predefinidos
-- Mejora automática con IA
+### 🤖 Chat Multimodal
+- Conversación natural con contexto visual.
+- Sube fotos de tu galería o usa las capturas recientes.
+- Pide consejos de diseño, combinaciones de ropa o ayuda con tareas complejas.
 
-### 🌙 Temas
-- Modo oscuro y claro
-- Diseño minimalista y elegante
+### 📅 Centro de Comando
+Un sistema de organización completo integrado con la IA:
+- **Tareas**: Gestión de pendientes con prioridades.
+- **Recetas**: Libro de cocina digital generado por IA a partir de fotos de ingredientes.
+- **Recordatorios**: Alertas inteligentes.
+- **Calendario**: Vista mensual de todos tus eventos.
 
 ## 🛠️ Tecnologías
 
-### Framework & Lenguaje
-| Tecnología | Versión | Descripción |
-|------------|---------|-------------|
-| ![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat&logo=flutter&logoColor=white) | 3.10+ | Framework de desarrollo multiplataforma |
-| ![Dart](https://img.shields.io/badge/Dart-0175C2?style=flat&logo=dart&logoColor=white) | 3.10+ | Lenguaje de programación |
+Este proyecto es un showcase de tecnologías modernas de Flutter, IA y servicios en la nube:
+
+### Core & Framework
+- **Flutter 3.10+**: UI fluida y multiplataforma.
+- **Dart 3**: Lenguaje robusto y tipado.
 
 ### Inteligencia Artificial
-| Tecnología | Descripción |
-|------------|-------------|
-| ![Google](https://img.shields.io/badge/Google_Gemini-4285F4?style=flat&logo=google&logoColor=white) | Gemini 2.0 Flash - Modelo de IA multimodal |
-| `google_generative_ai` | SDK oficial de Google para Dart |
+- **Google Gemini 2.0 Flash**: El modelo más rápido y eficiente de Google para visión y texto.
+- `google_generative_ai`: Integración directa con la API de Gemini.
 
-### Gestión de Estado & Arquitectura
-| Paquete | Uso |
-|---------|-----|
-| `provider` | Gestión de estado reactivo |
-| `shared_preferences` | Persistencia de datos local |
+### Backend & Servicios en la Nube (Firebase)
+- **Firebase Core**: Inicialización y configuración de servicios.
+- **Firebase Auth**: Autenticación segura de usuarios.
+- **Cloud Firestore**: Base de datos NoSQL en tiempo real para sincronizar tareas, recetas y eventos.
 
-### UI & Diseño
-| Paquete | Uso |
-|---------|-----|
-| `flutter_animate` | Animaciones fluidas |
-| `google_fonts` | Tipografía Inter |
-| `cupertino_icons` | Iconografía iOS |
+### Arquitectura & Estado
+- **Provider**: Gestión de estado limpia y escalable.
+- **MVC/Service Pattern**: Separación clara de lógica de negocio y UI.
 
-### Cámara & Multimedia
-| Paquete | Uso |
-|---------|-----|
-| `camera` | Acceso a cámara del dispositivo |
-| `image_picker` | Selección de imágenes de galería |
-| `image` | Procesamiento de imágenes |
-| `path_provider` | Gestión de rutas de archivos |
+### UI/UX
+- **Glassmorphism**: Diseño moderno con efectos de desenfoque y transparencias.
+- **Flutter Animate**: Animaciones declarativas para una experiencia premium.
+- **Google Fonts**: Tipografía moderna y legible.
+- **Flutter Markdown**: Renderizado de respuestas ricas de la IA.
 
-### Permisos & Sistema
-| Paquete | Uso |
-|---------|-----|
-| `permission_handler` | Gestión de permisos del sistema |
+### Hardware & Sistema
+- **Camera**: Gestión avanzada de hardware de cámara para Live View.
+- **Image Picker**: Selección de imágenes de la galería.
+- **Flutter Local Notifications**: Sistema de notificaciones y recordatorios locales.
+- **Path Provider**: Gestión de almacenamiento local.
 
 ## 📦 Estructura del Proyecto
 
 ```
 lib/
-├── main.dart                 # Punto de entrada
-├── core/
-│   ├── constants/           # Constantes de la app
-│   └── theme/               # Temas y colores (AuraTheme)
-├── models/
-│   ├── analysis_result.dart # Resultados de análisis
-│   ├── aura_image.dart      # Modelo de imagen
-│   └── organization_models.dart # Tareas, recordatorios, recetas, eventos
-├── providers/
-│   ├── aura_provider.dart   # Estado principal de la app
-│   ├── theme_provider.dart  # Estado del tema
-│   └── organization_provider.dart # Estado de organización
+├── main.dart                 # Entry point
 ├── screens/
-│   ├── home_screen.dart     # Pantalla principal con chat
-│   ├── camera_screen.dart   # Cámara
-│   ├── editor_screen.dart   # Editor de imágenes
-│   ├── gallery_screen.dart  # Galería
-│   ├── live_view_screen.dart # Vista en vivo con IA
-│   ├── organization_screen.dart # Calendario, tareas, etc.
-│   └── settings_screen.dart # Configuración
-├── services/
-│   ├── gemini_service.dart  # Integración con Gemini AI
-│   ├── camera_service.dart  # Servicios de cámara
-│   ├── storage_service.dart # Almacenamiento
-│   ├── organization_service.dart # Persistencia de organización
+│   ├── live_view_screen.dart # Core: Cámara AR y Auto-Organización
+│   ├── home_screen.dart      # Dashboard y Chat
+│   ├── organization_screen.dart # Gestión de tareas/recetas
 │   └── ...
-└── widgets/
-    ├── aura_gradient_text.dart # Texto con gradiente
-    ├── feature_card.dart    # Tarjetas de características
-    └── ...
+├── services/
+│   ├── gemini_service.dart   # Cerebro de la IA (Prompt Engineering)
+│   ├── camera_service.dart   # Abstracción de hardware
+│   └── ...
+├── providers/
+│   ├── organization_provider.dart # Lógica de negocio para datos
+│   └── ...
+└── models/
+    └── organization_models.dart # Estructuras de datos (Task, Recipe, etc.)
 ```
 
 ## 🚀 Instalación
-
-### Prerrequisitos
-- Flutter SDK 3.10+
-- Dart SDK 3.10+
-- Android Studio / VS Code
-- API Key de Google Gemini
-
-### Pasos
 
 1. **Clonar el repositorio**
 ```bash
@@ -148,54 +116,24 @@ cd Aura
 flutter pub get
 ```
 
-3. **Configurar API Key de Gemini**
+3. **Configurar API Key**
+Necesitas una API Key de [Google AI Studio](https://makersuite.google.com/app/apikey).
 
-Obtén tu API key en [Google AI Studio](https://makersuite.google.com/app/apikey)
-
-4. **Ejecutar la aplicación**
+4. **Ejecutar**
 ```bash
 flutter run --dart-define=GEMINI_API_KEY=tu_api_key_aqui
 ```
 
-## 📖 Uso
+## 📖 Guía de Uso Rápido
 
-### Chat con Aura
-Escribe o habla con Aura para:
-- Pedirle que analice una imagen
-- Crear tareas: *"Créame una tarea para estudiar mañana"*
-- Agregar recordatorios: *"Recuérdame llamar al doctor a las 3pm"*
-- Guardar recetas: *"Guarda esta receta de pasta carbonara"*
-- Agendar eventos: *"Agrega reunión el viernes de 10am a 12pm"*
-
-### Análisis de Imágenes
-1. Toca el ícono de cámara o galería
-2. Selecciona o toma una foto
-3. Aura analizará la imagen y dará sugerencias
-
-### Organización
-Accede al botón 📋 en el header para ver:
-- 📅 Calendario con eventos
-- ✅ Lista de tareas
-- 🔔 Recordatorios
-- 🍽️ Recetas guardadas
-
-## 🎨 Capturas de Pantalla
-
-| Chat | Organización | Editor |
-|------|--------------|--------|
-| Chat con IA | Calendario y tareas | Editor de fotos |
-
-## 📄 Licencia
-
-Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
-
-## 👨‍💻 Autor
-
-**Yesimar**
-- GitHub: [@yesimaaar](https://github.com/yesimaaar)
+1. **Modo Live**: Abre la cámara desde el home. Activa el switch "LIVE" para ver comentarios en tiempo real sobre tu entorno.
+2. **Captura y Organiza**:
+   - Apunta a un escritorio desordenado -> Toca el botón de captura -> "Agregar a Organización" -> Aura creará una **Tarea** de limpieza.
+   - Apunta a unos ingredientes -> Toca captura -> "Agregar a Organización" -> Aura creará una **Receta** con pasos e ingredientes.
+3. **Chat**: Usa el chat principal para preguntas de seguimiento sobre tus capturas.
 
 ---
 
 <p align="center">
-  Hecho con ❤️ y Flutter
+  Hecho con ❤️ por Yesimar
 </p>

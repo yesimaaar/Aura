@@ -1,64 +1,24 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import '../models/aura_image.dart';
-import '../models/analysis_result.dart';
-import '../services/camera_service.dart';
-import '../services/storage_service.dart';
-import '../services/image_analysis_service.dart';
-import '../services/image_enhancement_service.dart';
 import '../services/gemini_service.dart';
+import '../services/storage_service.dart';
+import '../models/aura_image.dart';
 
 /// Main state provider for the Aura app
 class AuraProvider extends ChangeNotifier {
-  final CameraService _cameraService = CameraService();
-  final StorageService _storageService = StorageService();
-  final ImageAnalysisService _analysisService = ImageAnalysisService();
-  final ImageEnhancementService _enhancementService = ImageEnhancementService();
   final GeminiService _geminiService = GeminiService();
-  
-  // Camera state
-  CameraService get camera => _cameraService;
+  final StorageService _storageService = StorageService();
   
   // Gemini service
   GeminiService get gemini => _geminiService;
   bool get isGeminiReady => _geminiService.isInitialized;
   
-  /// Chat with Aura (text only)
-  Future<String> chatWithAura(String message) async {
-    return await _geminiService.sendMessage(message);
-  }
+  // Image state
+  List<AuraImage> _images = [];
+  List<AuraImage> get images => _images;
   
-  /// Chat with Aura including an image
-  Future<String> chatWithAuraAndImage(String message, File image) async {
-    return await _geminiService.analyzeImage(image, prompt: message);
-  }
-  
-  /// Analyze live view frame
-  Future<List<String>> analyzeLiveFrame(Uint8List imageBytes, String context) async {
-    return await _geminiService.analyzeLiveView(imageBytes, context);
-  }
-  
-  // Current image state
-  AuraImage? _currentImage;
-  AuraImage? get currentImage => _currentImage;
-  
-  // Gallery state
-  List<AuraImage> _galleryImages = [];
-  List<AuraImage> get galleryImages => _galleryImages;
-  
-  // Analysis state
-  AnalysisResult? _analysisResult;
-  AnalysisResult? get analysisResult => _analysisResult;
-  bool _isAnalyzing = false;
-  bool get isAnalyzing => _isAnalyzing;
-  
-  // Enhancement state
-  ImageEnhancements _currentEnhancements = const ImageEnhancements();
-  ImageEnhancements get currentEnhancements => _currentEnhancements;
-  Uint8List? _enhancedPreview;
-  Uint8List? get enhancedPreview => _enhancedPreview;
-  bool _isProcessing = false;
-  bool get isProcessing => _isProcessing;
+  AuraImage? _selectedImage;
+  AuraImage? get selectedImage => _selectedImage;
   
   // UI state
   int _selectedTabIndex = 0;
@@ -71,205 +31,93 @@ class AuraProvider extends ChangeNotifier {
   Future<void> initialize() async {
     if (_isInitialized) return;
     
+    print('🔧 AuraProvider: Starting initialization...');
+    
+    // Initialize Gemini
     try {
-      await _cameraService.initialize();
-      await _analysisService.loadModels();
+      print('🔧 AuraProvider: Initializing Gemini...');
       await _geminiService.initialize();
-      await loadGallery();
-      _isInitialized = true;
-      notifyListeners();
+      print('✅ AuraProvider: Gemini done');
     } catch (e) {
-      debugPrint('Error initializing AuraProvider: $e');
-      rethrow;
+      print('⚠️ AuraProvider: Gemini initialization failed: $e');
+    }
+    
+    // Load images
+    try {
+      await loadImages();
+    } catch (e) {
+      print('⚠️ AuraProvider: Failed to load images: $e');
+    }
+    
+    _isInitialized = true;
+    notifyListeners();
+    print('✅ AuraProvider: Initialization complete');
+  }
+  
+  /// Load images from storage
+  Future<void> loadImages() async {
+    _images = await _storageService.getAllImages();
+    notifyListeners();
+  }
+  
+  /// Add a new image
+  void addImage(AuraImage image) {
+    _images.insert(0, image);
+    notifyListeners();
+  }
+  
+  /// Delete an image
+  Future<void> deleteImage(AuraImage image) async {
+    final success = await _storageService.deleteImage(image.path);
+    if (success) {
+      _images.removeWhere((img) => img.id == image.id);
+      if (_selectedImage?.id == image.id) {
+        _selectedImage = null;
+      }
+      notifyListeners();
     }
   }
   
-  /// Take a photo
-  Future<AuraImage?> takePhoto() async {
-    try {
-      final xFile = await _cameraService.takePhoto();
-      if (xFile != null) {
-        final image = await _storageService.saveImage(xFile);
-        _currentImage = image;
-        _galleryImages.insert(0, image);
-        _resetEnhancements();
-        notifyListeners();
-        return image;
-      }
-    } catch (e) {
-      debugPrint('Error taking photo: $e');
-    }
-    return null;
+  /// Select an image for analysis
+  void selectImage(AuraImage? image) {
+    _selectedImage = image;
+    notifyListeners();
+  }
+  
+  /// Clear selected image
+  void clearSelectedImage() {
+    _selectedImage = null;
+    notifyListeners();
   }
   
   /// Pick image from gallery
-  Future<AuraImage?> pickFromGallery() async {
-    try {
-      final image = await _storageService.pickFromGallery();
-      if (image != null) {
-        _currentImage = image;
-        _galleryImages.insert(0, image);
-        _resetEnhancements();
-        notifyListeners();
-        return image;
+  Future<void> pickFromGallery() async {
+    final image = await _storageService.pickFromGallery();
+    if (image != null) {
+      addImage(image);
+      selectImage(image);
+    }
+  }
+  
+  /// Chat with Aura (text or multimodal)
+  Future<String> chatWithAura(String message) async {
+    if (_selectedImage != null) {
+      // Multimodal chat
+      final File imageFile = File(_selectedImage!.path);
+      if (await imageFile.exists()) {
+        return await _geminiService.analyzeImage(imageFile, prompt: message);
+      } else {
+        return "Error: La imagen seleccionada no se encuentra.";
       }
-    } catch (e) {
-      debugPrint('Error picking from gallery: $e');
+    } else {
+      // Text only chat
+      return await _geminiService.sendMessage(message);
     }
-    return null;
-  }
-  
-  /// Load gallery images
-  Future<void> loadGallery() async {
-    try {
-      _galleryImages = await _storageService.getAllImages();
-      notifyListeners();
-    } catch (e) {
-      debugPrint('Error loading gallery: $e');
-    }
-  }
-  
-  /// Set current image for editing
-  void setCurrentImage(AuraImage image) {
-    _currentImage = image;
-    _resetEnhancements();
-    notifyListeners();
-  }
-  
-  /// Analyze current image
-  Future<void> analyzeImage() async {
-    if (_currentImage == null || _isAnalyzing) return;
-    
-    _isAnalyzing = true;
-    notifyListeners();
-    
-    try {
-      _analysisResult = await _analysisService.analyzeImage(_currentImage!);
-    } catch (e) {
-      debugPrint('Error analyzing image: $e');
-    } finally {
-      _isAnalyzing = false;
-      notifyListeners();
-    }
-  }
-  
-  /// Apply auto enhancement
-  Future<void> autoEnhance() async {
-    if (_currentImage == null || _isProcessing) return;
-    
-    _isProcessing = true;
-    notifyListeners();
-    
-    try {
-      _enhancedPreview = await _enhancementService.autoEnhance(
-        File(_currentImage!.path),
-      );
-      _currentEnhancements = const ImageEnhancements(
-        contrast: 1.1,
-        saturation: 1.1,
-        sharpness: 0.2,
-      );
-    } catch (e) {
-      debugPrint('Error auto enhancing: $e');
-    } finally {
-      _isProcessing = false;
-      notifyListeners();
-    }
-  }
-  
-  /// Update enhancements
-  Future<void> updateEnhancements(ImageEnhancements enhancements) async {
-    _currentEnhancements = enhancements;
-    notifyListeners();
-    
-    // Generate preview
-    await _generatePreview();
-  }
-  
-  /// Generate enhanced preview
-  Future<void> _generatePreview() async {
-    if (_currentImage == null || _isProcessing) return;
-    
-    _isProcessing = true;
-    
-    try {
-      _enhancedPreview = await _enhancementService.getEnhancedPreview(
-        File(_currentImage!.path),
-        _currentEnhancements,
-      );
-    } catch (e) {
-      debugPrint('Error generating preview: $e');
-    } finally {
-      _isProcessing = false;
-      notifyListeners();
-    }
-  }
-  
-  /// Apply a filter
-  Future<void> applyFilter(ImageFilter filter) async {
-    _currentEnhancements = filter.enhancements;
-    notifyListeners();
-    await _generatePreview();
-  }
-  
-  /// Save enhanced image
-  Future<String?> saveEnhancedImage() async {
-    if (_currentImage == null || _enhancedPreview == null) return null;
-    
-    try {
-      // Apply full quality enhancements
-      final fullQualityBytes = await _enhancementService.applyEnhancements(
-        File(_currentImage!.path),
-        _currentEnhancements,
-      );
-      
-      return await _storageService.saveEditedImage(
-        _currentImage!.id,
-        fullQualityBytes,
-      );
-    } catch (e) {
-      debugPrint('Error saving enhanced image: $e');
-      return null;
-    }
-  }
-  
-  /// Reset enhancements
-  void _resetEnhancements() {
-    _currentEnhancements = const ImageEnhancements();
-    _enhancedPreview = null;
-    _analysisResult = null;
-  }
-  
-  /// Reset current editing session
-  void resetEditing() {
-    _resetEnhancements();
-    notifyListeners();
-  }
-  
-  /// Delete image
-  Future<bool> deleteImage(AuraImage image) async {
-    final success = await _storageService.deleteImage(image.path);
-    if (success) {
-      _galleryImages.removeWhere((i) => i.id == image.id);
-      if (_currentImage?.id == image.id) {
-        _currentImage = null;
-        _resetEnhancements();
-      }
-      notifyListeners();
-    }
-    return success;
   }
   
   /// Set selected tab
   void setSelectedTab(int index) {
     _selectedTabIndex = index;
     notifyListeners();
-  }
-  
-  @override
-  void dispose() {
-    _cameraService.dispose();
-    _analysisService.dispose();
-    super.dispose();
   }
 }

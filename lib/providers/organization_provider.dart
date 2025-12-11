@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
 import '../models/organization_models.dart';
 import '../services/organization_service.dart';
+import '../services/notification_service.dart';
 
 /// Provider para gestionar el estado de organización
 class OrganizationProvider extends ChangeNotifier {
   final OrganizationService _service = OrganizationService();
+  final NotificationService _notificationService = NotificationService();
 
   List<TaskItem> _tasks = [];
   List<Reminder> _reminders = [];
@@ -86,6 +88,15 @@ class OrganizationProvider extends ChangeNotifier {
     _tasks.insert(0, task);
     notifyListeners();
     await _service.saveTasks(_tasks);
+
+    if (task.hasAlarm && task.dueDate != null && task.dueDate!.isAfter(DateTime.now())) {
+      await _notificationService.scheduleNotification(
+        id: task.id.hashCode,
+        title: 'Tarea pendiente: ${task.title}',
+        body: task.description ?? 'Tienes una tarea pendiente',
+        scheduledDate: task.dueDate!,
+      );
+    }
   }
 
   Future<void> updateTask(TaskItem task) async {
@@ -94,17 +105,48 @@ class OrganizationProvider extends ChangeNotifier {
       _tasks[index] = task;
       notifyListeners();
       await _service.saveTasks(_tasks);
+
+      // Cancelar notificación anterior
+      await _notificationService.cancelNotification(task.id.hashCode);
+
+      // Programar nueva si es necesario
+      if (task.hasAlarm &&
+          !task.isCompleted &&
+          task.dueDate != null &&
+          task.dueDate!.isAfter(DateTime.now())) {
+        await _notificationService.scheduleNotification(
+          id: task.id.hashCode,
+          title: 'Tarea pendiente: ${task.title}',
+          body: task.description ?? 'Tienes una tarea pendiente',
+          scheduledDate: task.dueDate!,
+        );
+      }
     }
   }
 
   Future<void> toggleTaskComplete(String taskId) async {
     final index = _tasks.indexWhere((t) => t.id == taskId);
     if (index != -1) {
+      final isCompleted = !_tasks[index].isCompleted;
       _tasks[index] = _tasks[index].copyWith(
-        isCompleted: !_tasks[index].isCompleted,
+        isCompleted: isCompleted,
       );
       notifyListeners();
       await _service.saveTasks(_tasks);
+
+      if (isCompleted) {
+        await _notificationService.cancelNotification(taskId.hashCode);
+      } else {
+        final task = _tasks[index];
+        if (task.hasAlarm && task.dueDate != null && task.dueDate!.isAfter(DateTime.now())) {
+          await _notificationService.scheduleNotification(
+            id: task.id.hashCode,
+            title: 'Tarea pendiente: ${task.title}',
+            body: task.description ?? 'Tienes una tarea pendiente',
+            scheduledDate: task.dueDate!,
+          );
+        }
+      }
     }
   }
 
@@ -112,6 +154,7 @@ class OrganizationProvider extends ChangeNotifier {
     _tasks.removeWhere((t) => t.id == taskId);
     notifyListeners();
     await _service.saveTasks(_tasks);
+    await _notificationService.cancelNotification(taskId.hashCode);
   }
 
   // ==================== REMINDERS ====================
@@ -120,6 +163,15 @@ class OrganizationProvider extends ChangeNotifier {
     _reminders.insert(0, reminder);
     notifyListeners();
     await _service.saveReminders(_reminders);
+
+    if (reminder.hasAlarm && reminder.dateTime.isAfter(DateTime.now())) {
+      await _notificationService.scheduleNotification(
+        id: reminder.id.hashCode,
+        title: 'Recordatorio: ${reminder.title}',
+        body: reminder.description ?? 'Es hora de tu recordatorio',
+        scheduledDate: reminder.dateTime,
+      );
+    }
   }
 
   Future<void> updateReminder(Reminder reminder) async {
@@ -128,17 +180,43 @@ class OrganizationProvider extends ChangeNotifier {
       _reminders[index] = reminder;
       notifyListeners();
       await _service.saveReminders(_reminders);
+
+      await _notificationService.cancelNotification(reminder.id.hashCode);
+
+      if (reminder.hasAlarm && !reminder.isCompleted && reminder.dateTime.isAfter(DateTime.now())) {
+        await _notificationService.scheduleNotification(
+          id: reminder.id.hashCode,
+          title: 'Recordatorio: ${reminder.title}',
+          body: reminder.description ?? 'Es hora de tu recordatorio',
+          scheduledDate: reminder.dateTime,
+        );
+      }
     }
   }
 
   Future<void> toggleReminderComplete(String reminderId) async {
     final index = _reminders.indexWhere((r) => r.id == reminderId);
     if (index != -1) {
+      final isCompleted = !_reminders[index].isCompleted;
       _reminders[index] = _reminders[index].copyWith(
-        isCompleted: !_reminders[index].isCompleted,
+        isCompleted: isCompleted,
       );
       notifyListeners();
       await _service.saveReminders(_reminders);
+
+      if (isCompleted) {
+        await _notificationService.cancelNotification(reminderId.hashCode);
+      } else {
+        final reminder = _reminders[index];
+        if (reminder.hasAlarm && reminder.dateTime.isAfter(DateTime.now())) {
+          await _notificationService.scheduleNotification(
+            id: reminder.id.hashCode,
+            title: 'Recordatorio: ${reminder.title}',
+            body: reminder.description ?? 'Es hora de tu recordatorio',
+            scheduledDate: reminder.dateTime,
+          );
+        }
+      }
     }
   }
 
@@ -146,6 +224,7 @@ class OrganizationProvider extends ChangeNotifier {
     _reminders.removeWhere((r) => r.id == reminderId);
     notifyListeners();
     await _service.saveReminders(_reminders);
+    await _notificationService.cancelNotification(reminderId.hashCode);
   }
 
   // ==================== RECIPES ====================
@@ -237,6 +316,7 @@ class OrganizationProvider extends ChangeNotifier {
     DateTime? dueDate,
     int priority = 2,
     String? category,
+    bool hasAlarm = false,
   }) async {
     final task = TaskItem(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -246,6 +326,7 @@ class OrganizationProvider extends ChangeNotifier {
       dueDate: dueDate,
       priority: priority,
       category: category,
+      hasAlarm: hasAlarm,
     );
     await addTask(task);
     return task;
@@ -258,6 +339,7 @@ class OrganizationProvider extends ChangeNotifier {
     required DateTime dateTime,
     bool repeat = false,
     String? repeatType,
+    bool hasAlarm = true,
   }) async {
     final reminder = Reminder(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -266,6 +348,7 @@ class OrganizationProvider extends ChangeNotifier {
       dateTime: dateTime,
       repeat: repeat,
       repeatType: repeatType,
+      hasAlarm: hasAlarm,
     );
     await addReminder(reminder);
     return reminder;

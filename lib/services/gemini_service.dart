@@ -151,6 +151,7 @@ Responde en español, sé práctico y da pasos accionables.
   /// Envía un mensaje de texto al chat
   Future<String> sendMessage(String message, {String? organizationContext}) async {
     if (!_isInitialized || _chatSession == null) {
+      print('⚠️ GeminiService: No inicializado o sesión nula. Usando simulado.');
       return _getSimulatedResponse(message, null);
     }
 
@@ -162,14 +163,16 @@ Responde en español, sé práctico y da pasos accionables.
       final response = await _chatSession!.sendMessage(Content.text(fullMessage));
       return response.text ?? 'No pude generar una respuesta.';
     } catch (e) {
-      debugPrint('Error en sendMessage: $e');
-      return _getSimulatedResponse(message, null);
+      print('❌ Error CRÍTICO en sendMessage: $e');
+      // Devolver el error real para depuración en lugar de respuesta simulada
+      return 'Error de conexión con Gemini: $e\n\nVerifica tu API Key y conexión a internet.';
     }
   }
 
   /// Envía un mensaje con imagen (base64)
   Future<String> sendMessageWithImage(String message, String imageBase64, {String? organizationContext}) async {
     if (!_isInitialized || _visionModel == null) {
+      print('⚠️ GeminiService: No inicializado o modelo de visión nulo. Usando simulado.');
       return _getSimulatedResponse(message, null);
     }
 
@@ -190,15 +193,16 @@ Responde en español, sé práctico y da pasos accionables.
 
       return response.text ?? 'No pude analizar la imagen.';
     } catch (e) {
-      debugPrint('Error en sendMessageWithImage: $e');
-      return _getSimulatedResponse(message, null);
+      print('❌ Error CRÍTICO en sendMessageWithImage: $e');
+      return 'Error analizando imagen con Gemini: $e';
     }
   }
 
   /// Analiza una imagen y genera una respuesta
   Future<String> analyzeImage(File imageFile, {String? prompt}) async {
     if (!_isInitialized || _visionModel == null) {
-      return _getSimulatedResponse(prompt ?? 'Analiza esta imagen', imageFile);
+      // Si no hay API key, devolver error en lugar de mock
+      return "Error: Gemini no está inicializado o falta la API Key.";
     }
 
     try {
@@ -218,7 +222,7 @@ Responde en español, sé práctico y da pasos accionables.
       return response.text ?? 'No pude analizar la imagen.';
     } catch (e) {
       debugPrint('Error en analyzeImage: $e');
-      return _getSimulatedResponse(prompt ?? 'Analiza esta imagen', imageFile);
+      return "Error al conectar con Gemini: $e";
     }
   }
 

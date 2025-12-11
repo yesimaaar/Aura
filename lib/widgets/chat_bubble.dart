@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '../models/chat_message.dart';
-import '../core/theme/aura_theme.dart';
 
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
@@ -61,13 +61,15 @@ class ChatBubble extends StatelessWidget {
                     if (message.content.isNotEmpty) const SizedBox(height: 8),
                   ],
                   if (message.content.isNotEmpty)
-                    Text(
-                      message.content,
-                      style: TextStyle(
-                        color: isUser
-                            ? (isDark ? Colors.black : Colors.white)
-                            : (isDark ? Colors.white : Colors.black),
-                        fontSize: 15,
+                    MarkdownBody(
+                      data: message.content,
+                      styleSheet: MarkdownStyleSheet(
+                        p: TextStyle(
+                          color: isUser
+                              ? (isDark ? Colors.black : Colors.white)
+                              : (isDark ? Colors.white : Colors.black),
+                          fontSize: 15,
+                        ),
                       ),
                     ),
                 ],
