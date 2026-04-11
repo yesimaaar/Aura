@@ -1,4 +1,4 @@
-# ✨ Aura - AI Visual Planning Assistant
+# ✨ Aura - AI Visual Planning Assistant (full vibe coding)
 
 <p align="center">
   <img src="assets/icons/aura_logo.png" alt="Aura Logo" width="120"/>
